@@ -9,6 +9,7 @@ const navLinks = [
   { href: "/", label: "Home" },
   { href: "#about", label: "About", scroll: true },
   { href: "/services", label: "Services" },
+  { href: "#faq", label: "FAQ", scroll: true },
 ];
 
 const navLinkVariant = {
@@ -40,13 +41,13 @@ export default function Navbar() {
       transition={{ type: "spring", duration: 0.8 }}
       className="fixed top-0 left-0 w-full z-50 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-neutral-900/70"
     >
-      <div className="flex items-center justify-between px-5 py-3 md:py-4 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between px-4 py-3 md:py-4 max-w-7xl mx-auto">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <img
-            src="/images/nutrilogo.png"
+            src="/images/anubha_logo.png"
             alt="logo"
-            className="w-9 h-9 rounded-md bg-white shadow-sm"
+            className="w-15 h-15 rounded-md bg-white shadow-sm"
             draggable={false}
           />
           <span className="font-semibold text-lg text-gray-800 dark:text-gray-100">
