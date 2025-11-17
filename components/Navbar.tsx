@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, User } from "lucide-react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 
 const navLinks = [
@@ -30,6 +30,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -38,6 +39,10 @@ export default function Navbar() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (menuOpen) setUserMenuOpen(false);
+  }, [menuOpen]);
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
@@ -57,7 +62,7 @@ export default function Navbar() {
 
   return (
     <>
-      {/* ✅ Navbar always on top */}
+      {/* Navbar */}
       <motion.nav
         initial={{ opacity: 0, y: -40 }}
         animate={{ opacity: 1, y: 0 }}
@@ -77,16 +82,17 @@ export default function Navbar() {
             <img
               src="/images/eatrightlogo.jpg"
               alt="logo"
-              className="w-12 h-12 rounded-md bg-white shadow-sm"
+              className="w-12 h-12 md:w-14 md:h-14 rounded-md bg-white"
               draggable={false}
             />
-            <span className="font-semibold text-lg text-emerald-800">
-              Dr. Anubha&apos;s Nutrition
+            <span className="font-semibold text-md md:text-lg text-emerald-800">
+              Dt. Anubha's Nutrition
             </span>
           </Link>
 
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8">
+          {/* Desktop Nav + User Icon */}
+          <div className="hidden md:flex items-center gap-6">
+            {/* Desktop Nav Links */}
             {navLinks.map((link, i) => (
               <motion.div
                 key={link.href}
@@ -102,7 +108,7 @@ export default function Navbar() {
                       e.preventDefault();
                       handleScrollOrRedirect(link.label.toLowerCase());
                     }}
-                    className="text-slate-600 hover:text-emerald-700 transition-colors font-medium"
+                    className="text-slate-600 hover:text-emerald-700 transition-colors font-medium cursor-pointer"
                   >
                     {link.label}
                   </button>
@@ -116,27 +122,97 @@ export default function Navbar() {
                 )}
               </motion.div>
             ))}
+
+            {/* User Icon (Desktop) */}
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen((prev) => !prev)}
+                className="p-2 rounded-full bg-white/80 border border-[#dfe7dd] hover:bg-white transition flex items-center justify-center cursor-pointer gap-2"
+              >
+                <User className="text-emerald-700" size={25} />
+                <p>User</p>
+              </button>
+
+              {/* Dropdown Desktop */}
+              {userMenuOpen && (
+                <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-lg border border-[#367228] py-2 z-[460]">
+                  <Link
+                    href="/login"
+                    className="block px-4 py-2 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition border-b"
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="block px-4 py-2 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition"
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    Register
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setMenuOpen((prev) => !prev)}
-            className="md:hidden rounded-md p-2 bg-white/80 border border-[#dfe7dd] hover:bg-white transition"
-          >
-            {menuOpen ? (
-              <X size={24} className="text-emerald-700" />
-            ) : (
-              <Menu size={24} className="text-emerald-700" />
-            )}
-          </button>
+          {/* MOBILE ICONS */}
+          <div className="flex items-center gap-1 md:hidden">
+            {/* Mobile User Icon */}
+            <button
+              onClick={() => setUserMenuOpen((prev) => !prev)}
+              className="p-2 rounded-full bg-white/80 border border-[#dfe7dd] hover:bg-white transition flex items-center justify-center"
+            >
+              <User className="text-emerald-700" size={20} />
+            </button>
+
+            {/* Mobile Menu Hamburger */}
+            <button
+              onClick={() => setMenuOpen((prev) => !prev)}
+              className="rounded-md p-2 bg-white/80 border border-[#dfe7dd] hover:bg-white transition"
+            >
+              {menuOpen ? (
+                <X size={20} className="text-emerald-700" />
+              ) : (
+                <Menu size={20} className="text-emerald-700" />
+              )}
+            </button>
+          </div>
         </div>
       </motion.nav>
 
-      {/* ✅ Mobile Menu Overlay & Drawer */}
+      {/* Overlay for User Dropdown */}
+      {userMenuOpen && (
+        <div
+          onClick={() => setUserMenuOpen(false)}
+          className="fixed inset-0 bg-black/20 backdrop-blur-[1px] z-[450]"
+        />
+      )}
+
+      {/* User Dropdown (Mobile View) */}
+      {userMenuOpen && (
+        <div className="fixed top-[64px] right-4 w-40 bg-white rounded-xl shadow-lg border border-[#1c3715] py-2 z-[460] md:hidden">
+          <Link
+            href="/login"
+            className="block px-4 py-2 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition border-b"
+            onClick={() => setUserMenuOpen(false)}
+          >
+            Login
+          </Link>
+          <Link
+            href="/register"
+            className="block px-4 py-2 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition"
+            onClick={() => setUserMenuOpen(false)}
+          >
+            Register
+          </Link>
+        </div>
+      )}
+
+      {/* MOBILE MENU OVERLAY + MENU */}
       <AnimatePresence>
         {menuOpen && (
           <>
-            {/* Background overlay */}
+            {/* Dim Background */}
             <motion.div
               key="overlay"
               initial={{ opacity: 0 }}
@@ -147,13 +223,13 @@ export default function Navbar() {
               onClick={() => setMenuOpen(false)}
             />
 
-            {/* Dropdown Menu */}
+            {/* Mobile Menu */}
             <motion.div
               key="mobileMenu"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
+              transition={{ duration: 0.3 }}
               className="fixed top-[64px] left-0 right-0 md:hidden flex flex-col items-center gap-4 py-6 border-t border-[#dfe7dd] bg-white/95 backdrop-blur-md z-[450] rounded-b-2xl shadow-xl"
             >
               {navLinks.map((link, i) => (
