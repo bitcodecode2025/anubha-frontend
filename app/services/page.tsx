@@ -6,6 +6,9 @@ import PlanCard from "@/components/PlanCard";
 import { plans } from "@/app/services/plan";
 import { useBookingForm } from "@/app/book/context/BookingFormContext";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/app/context/AuthContext";
+import PatientSelectionModal from "@/components/PatientSelectionModal";
+import toast from "react-hot-toast";
 
 const GENERAL_CONSULTATION = {
   title: "General Consultation",
@@ -18,8 +21,11 @@ const TYPING_INTERVAL_MS = 25;
 
 export default function ServicesPage() {
   const [typedText, setTypedText] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState<any>(null);
   const prefersReducedMotion = useReducedMotion();
   const { setForm, resetForm } = useBookingForm();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   const fullText =
@@ -49,18 +55,43 @@ export default function ServicesPage() {
         FIXED: General Consultation Handler
   -----------------------------------------*/
   function handleGeneralConsultation() {
-    resetForm();
+    // Check if user is authenticated
+    if (!user) {
+      toast.error("Please login to book an appointment");
+      router.push("/login");
+      return;
+    }
 
-    setForm({
+    // Store booking details
+    const bookingData = {
       planSlug: "general-consultation",
       planName: "General Consultation",
       planPrice: "₹1,000",
       planPriceRaw: 1000,
       planPackageName: null,
       planPackageDuration: null,
-    });
+    };
 
-    router.push("/book/user-details");
+    // Set form data immediately so it's available even if user clicks "Add Patient"
+    setForm(bookingData);
+    setPendingBooking(bookingData);
+    setIsModalOpen(true);
+  }
+
+  /* -----------------------------------------
+        Handle Patient Selection
+  -----------------------------------------*/
+  function handlePatientSelected(patientId: string) {
+    if (pendingBooking) {
+      setIsModalOpen(false);
+      // Set form data with patientId (don't reset to avoid redirect issues)
+      setForm({
+        ...pendingBooking,
+        patientId,
+      });
+      // Navigate directly to slot selection since patient already exists
+      router.push("/book/slot");
+    }
   }
 
   /* -----------------------------------------
@@ -226,6 +257,13 @@ export default function ServicesPage() {
           )}
         </section>
       </div>
+
+      {/* Patient Selection Modal */}
+      <PatientSelectionModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSelectPatient={handlePatientSelected}
+      />
     </main>
   );
 }

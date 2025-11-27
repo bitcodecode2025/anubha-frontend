@@ -19,3 +19,7 @@ export async function sendLoginOtp(data: { phone: string }) {
 export async function verifyLoginOtp(data: { phone: string; otp: string }) {
   return (await api.post("auth/login/verify-otp", data)).data;
 }
+
+export async function getMe() {
+  return (await api.get("auth/me")).data;
+}

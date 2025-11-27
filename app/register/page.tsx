@@ -217,7 +217,7 @@ export default function Register() {
       });
 
       // AUTO LOGIN USING SERVER RESPONSE
-      login(res.user, res.tokens.accessToken, res.tokens.refreshToken);
+      login(res.user);
 
       toast.success("Account created!");
       router.push("/");

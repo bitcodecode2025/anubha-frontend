@@ -111,6 +111,9 @@ const initialForm: BookingForm = {
   appointmentDate: null,
   appointmentTime: null,
 
+  slotId: null,
+  patientId: null,
+
   // NEW recall fields
   recallEntries: [],
   recallNotes: null,

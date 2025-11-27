@@ -14,20 +14,18 @@ interface User {
   id: string;
   name: string;
   phone: string;
-  role: string;
+  role?: string;
 }
 
 interface AuthContextProps {
   user: User | null;
-  accessToken: string | null;
   loading: boolean;
-  login: (user: User, accessToken: string, refreshToken: string) => void;
+  login: (user: User) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextProps>({
   user: null,
-  accessToken: null,
   loading: true,
   login: () => {},
   logout: () => {},
@@ -35,88 +33,65 @@ const AuthContext = createContext<AuthContextProps>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // ---------------- LOGIN ----------------
-  const login = (user: User, access: string, refresh: string) => {
+  const login = (user: User) => {
     setUser(user);
-    setAccessToken(access);
-
     localStorage.setItem("user", JSON.stringify(user));
-    localStorage.setItem("accessToken", access);
-    localStorage.setItem("refreshToken", refresh);
-
     toast.success("Logged in");
   };
 
   // ---------------- LOGOUT ----------------
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+
     localStorage.removeItem("user");
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-
     setUser(null);
-    setAccessToken(null);
-
     toast("Logged out");
   }, []);
 
-  // ---------------- REFRESH ACCESS TOKEN ----------------
-  const refreshAccessToken = useCallback(async () => {
+  // ---------------- FETCH USER FROM /me ----------------
+  const fetchUser = useCallback(async () => {
     try {
-      const refreshToken = localStorage.getItem("refreshToken");
-      if (!refreshToken) return logout();
-
-      const res = await api.get("/auth/refresh");
-
-      // console.log("res console in authcontext :", res.data);
-
-      const newAccess = res.data.accessToken;
-
-      setAccessToken(newAccess);
-      localStorage.setItem("accessToken", newAccess);
+      const res = await api.get<{ success: boolean; user: User }>("/auth/me");
+      if (res.data.success && res.data.user) {
+        setUser(res.data.user);
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+      }
     } catch (err) {
-      console.error("Refresh failed:", err);
-      logout();
+      console.error("Failed to fetch user:", err);
+      // Fall back to localStorage if API fails
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
     }
-  }, [logout]);
-
-  // Refresh every 14 min (backend handles validation)
-  useEffect(() => {
-    const interval = setInterval(refreshAccessToken, 14 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [refreshAccessToken]);
+  }, []);
 
   // ---------------- INITIAL APP HYDRATION ----------------
   useEffect(() => {
     const loadAuth = async () => {
       try {
-        const storedUser = localStorage.getItem("user");
-        const storedAccess = localStorage.getItem("accessToken");
-        const storedRefresh = localStorage.getItem("refreshToken");
-
-        if (storedUser) setUser(JSON.parse(storedUser));
-        if (storedAccess) setAccessToken(storedAccess);
-
-        if (storedRefresh) {
-          await refreshAccessToken();
-        }
+        // First, try to fetch from backend
+        await fetchUser();
       } catch (err) {
-        logout();
+        console.error("Auth load error:", err);
       }
-
       setLoading(false);
     };
 
     loadAuth();
-  }, [refreshAccessToken, logout]);
+  }, [fetchUser]);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        accessToken,
         loading,
         login,
         logout,

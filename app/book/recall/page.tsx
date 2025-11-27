@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useBookingForm } from "../context/BookingFormContext";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
+import { createPatient } from "@/lib/patient";
+import toast from "react-hot-toast";
 
 /* -------------------------------
    Types
@@ -30,6 +32,7 @@ const MEAL_TYPES = [
 export default function RecallPage() {
   const { form, setForm } = useBookingForm();
   const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* -------------------------------
      Block access if no plan selected
@@ -99,14 +102,89 @@ export default function RecallPage() {
     setForm({ recallNotes: value });
   }
 
-  function submitRecall() {
-    const fakePatientId = `patient-${Date.now()}`;
+  async function submitRecall() {
+    // If patientId already exists (user selected existing patient), skip creation
+    if (form.patientId) {
+      router.push("/book/slot");
+      return;
+    }
 
-    setForm({
-      patientId: fakePatientId,
-    });
+    // Validate required fields before creating patient
+    if (
+      !form.fullName ||
+      !form.mobile ||
+      !form.email ||
+      !form.dob ||
+      !form.age ||
+      !form.gender ||
+      !form.address ||
+      !form.weight ||
+      !form.height ||
+      !form.neck ||
+      !form.waist ||
+      !form.hip ||
+      !form.bowel ||
+      !form.waterIntake ||
+      !form.wakeUpTime ||
+      !form.sleepTime ||
+      !form.sleepQuality
+    ) {
+      toast.error("Please complete all required fields in previous steps");
+      router.push("/book/user-details");
+      return;
+    }
 
-    router.push("/book/slot");
+    setIsSubmitting(true);
+
+    try {
+      // Map form fields to backend schema
+      const patientData = {
+        name: form.fullName,
+        phone: form.mobile.replace(/\D/g, ""), // Remove non-digits
+        gender: form.gender.toUpperCase(), // MALE, FEMALE, OTHER
+        email: form.email,
+        dateOfBirth: form.dob,
+        age: Number(form.age),
+        address: form.address,
+        weight: Number(form.weight),
+        height: Number(form.height),
+        neck: Number(form.neck),
+        waist: Number(form.waist),
+        hip: Number(form.hip),
+        medicalHistory: form.medicalHistory || undefined,
+        appointmentConcerns: form.appointmentConcerns || undefined,
+        bowelMovement: form.bowel.toUpperCase(), // NORMAL, CONSTIPATION, etc.
+        dailyFoodIntake: form.dailyFood || undefined,
+        dailyWaterIntake: Number(form.waterIntake),
+        wakeUpTime: form.wakeUpTime,
+        sleepTime: form.sleepTime,
+        sleepQuality: form.sleepQuality.toUpperCase(), // NORMAL, IRREGULAR, etc.
+        fileIds: [], // TODO: Handle file uploads if needed
+      };
+
+      const response = await createPatient(patientData);
+
+      if (response.success && response.patient?.id) {
+        // Update form with the created patient ID
+        setForm({
+          patientId: response.patient.id,
+        });
+
+        toast.success("Patient details saved successfully!");
+        router.push("/book/slot");
+      } else {
+        throw new Error(response.message || "Failed to create patient");
+      }
+    } catch (error: any) {
+      console.error("Failed to create patient:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to save patient details. Please try again.";
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function goBack() {
@@ -285,9 +363,17 @@ export default function RecallPage() {
 
           <button
             onClick={submitRecall}
-            className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:brightness-110"
+            disabled={isSubmitting}
+            className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Save & Continue →
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save & Continue →"
+            )}
           </button>
         </div>
       </div>

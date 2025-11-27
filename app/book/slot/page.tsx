@@ -3,7 +3,9 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useBookingForm } from "../context/BookingFormContext";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Video, MapPin, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Video, MapPin, Clock, Loader2 } from "lucide-react";
+import { getAvailableSlots, Slot } from "@/lib/slots";
+import toast from "react-hot-toast";
 
 export default function SlotPage() {
   const { form, setForm } = useBookingForm();
@@ -22,31 +24,52 @@ export default function SlotPage() {
   const [mode, setMode] = useState<"In-person" | "Online">("In-person");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState("");
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   useEffect(() => {
     if (form.appointmentMode)
       setMode(form.appointmentMode as "In-person" | "Online");
   }, [form.appointmentMode]);
 
+  // Reset selected time when mode changes
+  useEffect(() => {
+    setSelectedTime("");
+  }, [mode]);
+
   /* -------------------------------------------------
-      SLOT LISTS
+      FETCH SLOTS FROM BACKEND
   -------------------------------------------------- */
-  const offlineSlots = [
-    "10:00 AM – 10:40 AM",
-    "11:00 AM – 11:40 AM",
-    "12:00 PM – 12:40 PM",
-  ];
+  useEffect(() => {
+    if (!selectedDate) {
+      setSlots([]);
+      return;
+    }
 
-  const onlineSlots = [
-    "2:00 PM – 2:40 PM",
-    "3:00 PM – 3:40 PM",
-    "4:00 PM – 4:40 PM",
-    "5:00 PM – 5:40 PM",
-    "6:00 PM – 6:40 PM",
-    "7:00 PM – 7:40 PM",
-  ];
+    const fetchSlots = async () => {
+      setLoadingSlots(true);
+      try {
+        // Convert mode to backend format
+        const backendMode = mode === "In-person" ? "IN_PERSON" : "ONLINE";
+        
+        // Format date as YYYY-MM-DD
+        const dateStr = selectedDate.toISOString().split("T")[0];
+        
+        const fetchedSlots = await getAvailableSlots(dateStr, backendMode);
+        setSlots(fetchedSlots);
+      } catch (error: any) {
+        console.error("Failed to fetch slots:", error);
+        toast.error(
+          error?.response?.data?.message || "Failed to load available slots"
+        );
+        setSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
 
-  const activeSlots = mode === "In-person" ? offlineSlots : onlineSlots;
+    fetchSlots();
+  }, [selectedDate, mode]);
 
   /* -------------------------------------------------
       CALENDAR SETUP
@@ -91,25 +114,10 @@ export default function SlotPage() {
   }
 
   /* -------------------------------------------------
-      TIME SLOT: Disable Past Times (Today Only)
+      TIME SLOT: Check if slot is selected
   -------------------------------------------------- */
-  function parseSlotStart(slot: string) {
-    const [start] = slot.split("–").map((s) => s.trim());
-    return new Date(`${selectedDate?.toDateString()} ${start}`);
-  }
-
-  function isPastSlot(slot: string) {
-    if (!selectedDate) return false;
-
-    const now = new Date();
-    const slotStart = parseSlotStart(slot);
-
-    // If selected date is today, block past times
-    if (selectedDate.toDateString() === now.toDateString()) {
-      return slotStart < now;
-    }
-
-    return false;
+  function isSlotSelected(slot: Slot) {
+    return selectedTime === slot.label;
   }
 
   /* -------------------------------------------------
@@ -117,7 +125,15 @@ export default function SlotPage() {
   -------------------------------------------------- */
   function onNext() {
     if (!selectedDate || !selectedTime) {
-      alert("Please select both date and time.");
+      toast.error("Please select both date and time.");
+      return;
+    }
+
+    // Find the selected slot to get its ID
+    const selectedSlot = slots.find((s) => s.label === selectedTime);
+
+    if (!selectedSlot) {
+      toast.error("Selected slot not found. Please try again.");
       return;
     }
 
@@ -125,6 +141,7 @@ export default function SlotPage() {
       appointmentMode: mode,
       appointmentDate: selectedDate.toISOString(),
       appointmentTime: selectedTime,
+      slotId: selectedSlot.id,
     });
 
     router.push("/book/payment");
@@ -255,37 +272,39 @@ export default function SlotPage() {
 
           {!selectedDate ? (
             <p className="text-slate-500 text-sm">Select a date first.</p>
+          ) : loadingSlots ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
+            </div>
+          ) : slots.length === 0 ? (
+            <p className="text-slate-500 text-sm">
+              No available slots for this date. Please select another date.
+            </p>
           ) : (
             <div className="space-y-3">
-              {activeSlots.map((slot) => {
-                const disabled = isPastSlot(slot);
+              {slots.map((slot) => {
+                const isSelected = isSlotSelected(slot);
 
                 return (
                   <button
-                    key={slot}
-                    disabled={disabled}
+                    key={slot.id}
                     onClick={() => {
-                      setSelectedTime(slot);
-
+                      setSelectedTime(slot.label);
                       setForm({
                         appointmentMode: mode,
-                        appointmentDate: selectedDate!.toISOString(),
-                        appointmentTime: slot,
-
-                        // ⭐ THIS IS WHERE YOU STORE slotId
-                        slotId: `${selectedDate?.toISOString()}-${slot}`,
+                        appointmentDate: selectedDate.toISOString(),
+                        appointmentTime: slot.label,
+                        slotId: slot.id,
                       });
                     }}
                     className={`w-full px-4 py-4 rounded-lg border text-sm flex justify-between transition ${
-                      disabled
-                        ? "bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed"
-                        : selectedTime === slot
+                      isSelected
                         ? "bg-emerald-600 text-white border-emerald-600"
                         : "bg-white text-slate-700 border-slate-300 hover:bg-emerald-50"
                     }`}
                   >
-                    {slot}
-                    {!disabled && (
+                    {slot.label}
+                    {!isSelected && (
                       <span className="w-2 h-2 bg-emerald-400 rounded-full" />
                     )}
                   </button>

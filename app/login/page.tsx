@@ -208,7 +208,7 @@ export default function Login() {
       });
 
       // AUTO LOGIN
-      login(res.owner, res.tokens.accessToken, res.tokens.refreshToken);
+      login(res.user);
 
       toast.success("Logged in successfully!");
       router.push("/");
