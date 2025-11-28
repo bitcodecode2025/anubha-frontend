@@ -17,7 +17,11 @@ export async function sendLoginOtp(data: { phone: string }) {
 }
 
 export async function verifyLoginOtp(data: { phone: string; otp: string }) {
-  return (await api.post("auth/login/verify-otp", data)).data;
+  const response = (await api.post("auth/login/verify-otp", data)).data;
+  if (!response.user && response.owner) {
+    response.user = response.owner;
+  }
+  return response;
 }
 
 export async function getMe() {

@@ -67,7 +67,7 @@ const TimerCircle = ({ seconds, total = 60 }) => {
 
 export default function Login() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { user, loading, login } = useAuth();
 
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState(["", "", "", ""]);
@@ -84,6 +84,14 @@ export default function Login() {
   const otpRefs = Array.from({ length: 4 }, () =>
     useRef<HTMLInputElement | null>(null)
   );
+
+  /* ---------------- AUTO-REDIRECT IF ALREADY LOGGED IN ---------------- */
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+    const destination = user.role === "ADMIN" ? "/admin" : "/";
+    router.replace(destination);
+  }, [user, loading, router]);
 
   /* ---------------- RESTORE TIMER ON REFRESH ---------------- */
   useEffect(() => {
@@ -211,7 +219,9 @@ export default function Login() {
       login(res.user);
 
       toast.success("Logged in successfully!");
-      router.push("/");
+      const destination =
+        (res.user?.role || res.role) === "ADMIN" ? "/admin" : "/";
+      router.push(destination);
     } catch (err: any) {
       toast.error(extractError(err));
       setErrors({ otp: extractError(err) });
