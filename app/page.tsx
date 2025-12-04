@@ -7,14 +7,13 @@ import FAQSection from "@/components/FAQSection";
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col gap-24 pb-20">
+    <div className="flex flex-col gap-4 pb-1">
       <Hero />
       <section id="about" className="px-6 sm:px-8 lg:px-16">
         <div className="max-w-4xl mx-auto w-full">
           <About />
         </div>
       </section>
-
       <Testimonials />
       <HowItWorks />
       <OnlineProgram />

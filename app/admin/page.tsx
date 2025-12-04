@@ -97,7 +97,6 @@ export default function AdminDashboardPage() {
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-cyan-500 rounded-full blur-2xl" />
             </div>
 
-            {/* Content */}
             <div className="relative z-10">
               {/* Icon */}
               <div className="mb-6 flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 shadow-lg">

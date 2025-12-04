@@ -25,7 +25,7 @@ export default function Testimonials() {
     <section className="w-full py-24 px-6 bg-gradient-to-b from-white via-emerald-50/20 to-white">
       <div className="max-w-7xl mx-auto">
         <h2 className="text-center text-3xl md:text-4xl font-extrabold text-emerald-800 mb-5">
-          Client Transformations ✨
+          Client Transformations
         </h2>
 
         <p className="text-center text-slate-600 mb-16 max-w-2xl mx-auto text-base">

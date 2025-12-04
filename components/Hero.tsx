@@ -13,7 +13,7 @@ const fruits = [
 
 export default function Hero() {
   return (
-    <section className="relative flex flex-col items-center justify-center text-center overflow-hidden pb-16">
+    <section className="relative flex flex-col items-center justify-center text-center overflow-hidden pb-6">
       <HeroClient fruits={fruits} />
 
       <div className="absolute inset-0 bg-linear-to-b from-white/90 via-white/75 to-transparent" />

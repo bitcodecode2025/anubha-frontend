@@ -479,9 +479,7 @@ export default function DoctorNotesModal({
               {/* Content */}
               <div className="flex-1 overflow-y-auto p-6">
                 {loading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-                  </div>
+                  <ModalSkeleton />
                 ) : (
                   <div className="space-y-6">
                     {/* Add Field Button */}
@@ -686,5 +684,46 @@ export default function DoctorNotesModal({
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+// Skeleton Loader for Modal
+function ModalSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* Header Skeleton */}
+      <div className="flex items-center justify-between">
+        <div className="h-6 bg-slate-200 rounded-lg w-32 animate-pulse"></div>
+        <div className="h-10 bg-emerald-200 rounded-lg w-28 animate-pulse"></div>
+      </div>
+
+      {/* Field Groups Skeleton */}
+      {[1, 2, 3].map((group) => (
+        <div
+          key={group}
+          className="border border-slate-200 rounded-lg p-4 space-y-4"
+        >
+          {/* Group Title Skeleton */}
+          <div className="h-5 bg-slate-200 rounded w-1/3 animate-pulse"></div>
+
+          {/* Fields Skeleton */}
+          {[1, 2, 3].map((field) => (
+            <div key={field} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="h-4 bg-slate-200 rounded w-1/4 animate-pulse"></div>
+                <div className="h-4 bg-slate-200 rounded w-16 animate-pulse"></div>
+              </div>
+              <div className="h-10 bg-slate-100 rounded-lg animate-pulse"></div>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* Notes Section Skeleton */}
+      <div className="border border-slate-200 rounded-lg p-4 space-y-2">
+        <div className="h-4 bg-slate-200 rounded w-32 animate-pulse"></div>
+        <div className="h-24 bg-slate-100 rounded-lg animate-pulse"></div>
+      </div>
+    </div>
   );
 }
