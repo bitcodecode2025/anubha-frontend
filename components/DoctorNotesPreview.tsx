@@ -609,10 +609,10 @@ export default function DoctorNotesPreview({
                               {item.quantity && ` (${item.quantity})`}
                             </div>
                           ))}
-                      {formData.eveningSnack.teaCoffee?.checked && (
+                      {(formData.eveningSnack as any).teaCoffee?.checked && (
                         <div>☕ Tea/Coffee: Yes</div>
                       )}
-                      {formData.eveningSnack.milk?.checked && (
+                      {(formData.eveningSnack as any).milk?.checked && (
                         <div>🥛 Milk: Yes</div>
                       )}
                       <div className="md:col-span-2">
@@ -876,30 +876,36 @@ export default function DoctorNotesPreview({
                   value={formData.weekendDiet.orderedFromOutsideFoodItems}
                 />
               </div>
-              {formData.weekendDiet.snacksList?.checked && (
-                <FieldDisplay
-                  label="Snacks List"
-                  value={formData.weekendDiet.snacksList.quantity}
-                />
-              )}
-              {formData.weekendDiet.starterList?.checked && (
-                <FieldDisplay
-                  label="Starter List"
-                  value={formData.weekendDiet.starterList.quantity}
-                />
-              )}
-              {formData.weekendDiet.mainCourseList?.checked && (
-                <FieldDisplay
-                  label="Main Course List"
-                  value={formData.weekendDiet.mainCourseList.quantity}
-                />
-              )}
-              {formData.weekendDiet.sweetItemList?.checked && (
-                <FieldDisplay
-                  label="Sweet Item List"
-                  value={formData.weekendDiet.sweetItemList.quantity}
-                />
-              )}
+              {typeof formData.weekendDiet.snacksList === "object" &&
+                (formData.weekendDiet.snacksList as any)?.checked && (
+                  <FieldDisplay
+                    label="Snacks List"
+                    value={(formData.weekendDiet.snacksList as any).quantity}
+                  />
+                )}
+              {typeof formData.weekendDiet.starterList === "object" &&
+                (formData.weekendDiet.starterList as any)?.checked && (
+                  <FieldDisplay
+                    label="Starter List"
+                    value={(formData.weekendDiet.starterList as any).quantity}
+                  />
+                )}
+              {typeof formData.weekendDiet.mainCourseList === "object" &&
+                (formData.weekendDiet.mainCourseList as any)?.checked && (
+                  <FieldDisplay
+                    label="Main Course List"
+                    value={
+                      (formData.weekendDiet.mainCourseList as any).quantity
+                    }
+                  />
+                )}
+              {typeof formData.weekendDiet.sweetItemList === "object" &&
+                (formData.weekendDiet.sweetItemList as any)?.checked && (
+                  <FieldDisplay
+                    label="Sweet Item List"
+                    value={(formData.weekendDiet.sweetItemList as any).quantity}
+                  />
+                )}
               <FieldDisplay
                 label="Sleeping Time (Weekend)"
                 value={formData.weekendDiet.sleepingTime}
@@ -1168,51 +1174,96 @@ export default function DoctorNotesPreview({
 
                 {/* Lifestyle */}
                 {formData.foodFrequency.lifestyle &&
-                  Array.isArray(formData.foodFrequency.lifestyle) &&
-                  formData.foodFrequency.lifestyle.length > 0 && (
+                  typeof formData.foodFrequency.lifestyle === "object" &&
+                  !Array.isArray(formData.foodFrequency.lifestyle) &&
+                  Object.keys(formData.foodFrequency.lifestyle).length > 0 && (
                     <div className="bg-slate-50 rounded-lg p-4">
                       <h5 className="font-semibold text-slate-700 mb-3">
                         Lifestyle
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {formData.foodFrequency.lifestyle
-                          .filter((item: any) => item.checked)
-                          .map((item: any, idx: number) => (
-                            <div key={idx} className="bg-white rounded p-3">
-                              <div className="font-medium text-slate-900 mb-1">
-                                {item.name}
-                              </div>
-                              {item.qty && (
-                                <div className="text-sm text-slate-600">
-                                  Qty: {item.qty} cups/pieces
-                                </div>
-                              )}
-                              {item.frequency && (
-                                <div className="text-sm text-slate-600">
-                                  Frequency: {item.frequency}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        {formData.foodFrequency.lifestyle?.alcohol?.checked && (
+                        {(formData.foodFrequency.lifestyle as any).smoking
+                          ?.checked && (
                           <div className="bg-white rounded p-3">
                             <div className="font-medium text-slate-900 mb-1">
-                              Alcohol
+                              Smoking
                             </div>
-                            {formData.foodFrequency.lifestyle.alcohol.qty && (
+                            {(formData.foodFrequency.lifestyle as any).smoking
+                              .qty && (
                               <div className="text-sm text-slate-600">
                                 Qty:{" "}
-                                {formData.foodFrequency.lifestyle.alcohol.qty}{" "}
-                                ml
+                                {
+                                  (formData.foodFrequency.lifestyle as any)
+                                    .smoking.qty
+                                }{" "}
+                                cups/pieces
                               </div>
                             )}
-                            {formData.foodFrequency.lifestyle.alcohol
+                            {(formData.foodFrequency.lifestyle as any).smoking
                               .frequency && (
                               <div className="text-sm text-slate-600">
                                 Frequency:{" "}
                                 {
-                                  formData.foodFrequency.lifestyle.alcohol
-                                    .frequency
+                                  (formData.foodFrequency.lifestyle as any)
+                                    .smoking.frequency
+                                }
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {(formData.foodFrequency.lifestyle as any).tobacco
+                          ?.checked && (
+                          <div className="bg-white rounded p-3">
+                            <div className="font-medium text-slate-900 mb-1">
+                              Tobacco
+                            </div>
+                            {(formData.foodFrequency.lifestyle as any).tobacco
+                              .qty && (
+                              <div className="text-sm text-slate-600">
+                                Qty:{" "}
+                                {
+                                  (formData.foodFrequency.lifestyle as any)
+                                    .tobacco.qty
+                                }{" "}
+                                cups/pieces
+                              </div>
+                            )}
+                            {(formData.foodFrequency.lifestyle as any).tobacco
+                              .frequency && (
+                              <div className="text-sm text-slate-600">
+                                Frequency:{" "}
+                                {
+                                  (formData.foodFrequency.lifestyle as any)
+                                    .tobacco.frequency
+                                }
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {(formData.foodFrequency.lifestyle as any).alcohol
+                          ?.checked && (
+                          <div className="bg-white rounded p-3">
+                            <div className="font-medium text-slate-900 mb-1">
+                              Alcohol
+                            </div>
+                            {(formData.foodFrequency.lifestyle as any).alcohol
+                              .qty && (
+                              <div className="text-sm text-slate-600">
+                                Qty:{" "}
+                                {
+                                  (formData.foodFrequency.lifestyle as any)
+                                    .alcohol.qty
+                                }{" "}
+                                ml
+                              </div>
+                            )}
+                            {(formData.foodFrequency.lifestyle as any).alcohol
+                              .frequency && (
+                              <div className="text-sm text-slate-600">
+                                Frequency:{" "}
+                                {
+                                  (formData.foodFrequency.lifestyle as any)
+                                    .alcohol.frequency
                                 }
                               </div>
                             )}
