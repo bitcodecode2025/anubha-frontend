@@ -37,6 +37,20 @@ export type BookingForm = {
   neck: string | null;
   waist: string | null;
   hip: string | null;
+  // Detailed measurements (for weight loss plan)
+  chest: string | null;
+  chestFemale: string | null;
+  normalChestLung: string | null;
+  expandedChestLungs: string | null;
+  arms: string | null;
+  forearms: string | null;
+  wrist: string | null;
+  abdomenUpper: string | null;
+  abdomenLower: string | null;
+  thighUpper: string | null;
+  thighLower: string | null;
+  calf: string | null;
+  ankle: string | null;
 
   medicalHistory: string | null;
   appointmentConcerns: string | null;
@@ -91,6 +105,20 @@ const initialForm: BookingForm = {
   neck: null,
   waist: null,
   hip: null,
+  // Detailed measurements
+  chest: null,
+  chestFemale: null,
+  normalChestLung: null,
+  expandedChestLungs: null,
+  arms: null,
+  forearms: null,
+  wrist: null,
+  abdomenUpper: null,
+  abdomenLower: null,
+  thighUpper: null,
+  thighLower: null,
+  calf: null,
+  ankle: null,
 
   medicalHistory: null,
   appointmentConcerns: null,

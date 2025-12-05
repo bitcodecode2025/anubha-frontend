@@ -22,7 +22,7 @@ const testimonials: Testimonial[] = [
 
 export default function Testimonials() {
   return (
-    <section className="w-full py-24 px-6 bg-gradient-to-b from-white via-emerald-50/20 to-white">
+    <section className="w-full py-24 px-6 bg-gradient-to-br from-emerald-50/40 via-teal-50/30 to-cyan-50/40">
       <div className="max-w-7xl mx-auto">
         <h2 className="text-center text-3xl md:text-4xl font-extrabold text-emerald-800 mb-5">
           Client Transformations

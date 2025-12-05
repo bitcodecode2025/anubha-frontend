@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { getDoctorNotes } from "@/lib/doctor-notes-api";
+import DoctorNotesPreview from "@/components/DoctorNotesPreview";
 
 // Skeleton Loader Component
 function SkeletonLoader() {
@@ -88,6 +90,8 @@ export default function AppointmentDetailsPage() {
   );
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [doctorNotes, setDoctorNotes] = useState<any>(null);
+  const [loadingNotes, setLoadingNotes] = useState(true);
 
   const appointmentId = params.id as string;
 
@@ -106,16 +110,19 @@ export default function AppointmentDetailsPage() {
   useEffect(() => {
     if (user?.role === "ADMIN" && appointmentId) {
       fetchAppointmentDetails();
+      fetchDoctorNotes();
     }
   }, [appointmentId, user]);
 
   async function fetchAppointmentDetails() {
     setLoading(true);
     try {
+      console.log("[APPOINTMENT DETAILS] Fetching appointment:", appointmentId);
       const response = await getAppointmentDetails(appointmentId);
+      console.log("[APPOINTMENT DETAILS] Appointment loaded:", response.appointment);
       setAppointment(response.appointment);
     } catch (error: any) {
-      console.error("Failed to fetch appointment details:", error);
+      console.error("[APPOINTMENT DETAILS] Failed to fetch:", error);
       toast.error(
         error?.response?.data?.message || "Failed to load appointment details"
       );
@@ -123,6 +130,31 @@ export default function AppointmentDetailsPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchDoctorNotes() {
+    setLoadingNotes(true);
+    try {
+      console.log("[APPOINTMENT DETAILS] Fetching doctor notes for:", appointmentId);
+      const response = await getDoctorNotes(appointmentId);
+      if (response.success && response.doctorNotes) {
+        console.log("[APPOINTMENT DETAILS] Doctor notes found:", response.doctorNotes);
+        setDoctorNotes(response.doctorNotes);
+      } else {
+        console.log("[APPOINTMENT DETAILS] No doctor notes found");
+        setDoctorNotes(null);
+      }
+    } catch (error: any) {
+      console.error("[APPOINTMENT DETAILS] Failed to fetch doctor notes:", error);
+      setDoctorNotes(null);
+    } finally {
+      setLoadingNotes(false);
+    }
+  }
+
+  function handleNotesSaved() {
+    // Refresh doctor notes after save
+    fetchDoctorNotes();
   }
 
   if (authLoading || loading) {
@@ -526,6 +558,30 @@ export default function AppointmentDetailsPage() {
             </section>
           )}
 
+        {/* Doctor Notes Preview */}
+        {loadingNotes ? (
+          <div className="border-t border-slate-200 pt-6 mb-6">
+            <div className="bg-slate-50 rounded-lg p-6 animate-pulse">
+              <div className="h-6 bg-slate-200 rounded w-1/3 mb-4"></div>
+              <div className="space-y-3">
+                <div className="h-4 bg-slate-200 rounded w-full"></div>
+                <div className="h-4 bg-slate-200 rounded w-5/6"></div>
+                <div className="h-4 bg-slate-200 rounded w-4/6"></div>
+              </div>
+            </div>
+          </div>
+        ) : doctorNotes ? (
+          <div className="border-t border-slate-200 pt-6 mb-6">
+            <DoctorNotesPreview
+              formData={doctorNotes.formData}
+              createdAt={doctorNotes.createdAt}
+              updatedAt={doctorNotes.updatedAt}
+              isDraft={doctorNotes.isDraft}
+              onEdit={() => router.push(`/admin/appointments/${appointmentId}/notes`)}
+            />
+          </div>
+        ) : null}
+
         {/* Add Doctor Notes Button */}
         <div className="border-t border-slate-200 pt-6">
           <button
@@ -534,7 +590,8 @@ export default function AppointmentDetailsPage() {
             }
             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors"
           >
-            <Stethoscope className="w-5 h-5" />+ Add Doctor Notes
+            <Stethoscope className="w-5 h-5" />
+            {doctorNotes ? "Edit Doctor Notes" : "+ Add Doctor Notes"}
           </button>
         </div>
       </div>

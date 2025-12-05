@@ -124,9 +124,7 @@ export default function UserDetailsPage() {
       if (!form.address) missingFields.push("Address");
       if (!form.weight) missingFields.push("Weight");
       if (!form.height) missingFields.push("Height");
-      if (!form.neck) missingFields.push("Neck measurement");
-      if (!form.waist) missingFields.push("Waist measurement");
-      if (!form.hip) missingFields.push("Hip measurement");
+      // Note: neck, waist, hip, and detailed measurements are optional
       if (!form.bowel) missingFields.push("Bowel movement");
       if (!form.foodPreference) missingFields.push("Food preference");
       if (!form.waterIntake) missingFields.push("Water intake");
@@ -168,6 +166,15 @@ export default function UserDetailsPage() {
 
         // Map form fields to backend schema
         // At this point, all required fields are validated and not null
+        // Helper function to convert string to number or undefined
+        const toNumberOrUndefined = (
+          val: string | null | undefined
+        ): number | undefined => {
+          if (!val || val === "") return undefined;
+          const num = Number(val);
+          return isNaN(num) ? undefined : num;
+        };
+
         const patientData = {
           name: form.fullName!,
           phone: form.mobile!.replace(/\D/g, ""), // Remove non-digits
@@ -178,9 +185,24 @@ export default function UserDetailsPage() {
           address: form.address!,
           weight: Number(form.weight!),
           height: Number(form.height!),
-          neck: Number(form.neck!),
-          waist: Number(form.waist!),
-          hip: Number(form.hip!),
+          // Optional basic measurements
+          neck: toNumberOrUndefined(form.neck),
+          waist: toNumberOrUndefined(form.waist),
+          hip: toNumberOrUndefined(form.hip),
+          // Optional detailed measurements (for weight loss plan)
+          chest: toNumberOrUndefined(form.chest),
+          chestFemale: toNumberOrUndefined(form.chestFemale),
+          normalChestLung: toNumberOrUndefined(form.normalChestLung),
+          expandedChestLungs: toNumberOrUndefined(form.expandedChestLungs),
+          arms: toNumberOrUndefined(form.arms),
+          forearms: toNumberOrUndefined(form.forearms),
+          wrist: toNumberOrUndefined(form.wrist),
+          abdomenUpper: toNumberOrUndefined(form.abdomenUpper),
+          abdomenLower: toNumberOrUndefined(form.abdomenLower),
+          thighUpper: toNumberOrUndefined(form.thighUpper),
+          thighLower: toNumberOrUndefined(form.thighLower),
+          calf: toNumberOrUndefined(form.calf),
+          ankle: toNumberOrUndefined(form.ankle),
           medicalHistory: form.medicalHistory || undefined,
           appointmentConcerns: form.appointmentConcerns || undefined,
           bowelMovement: form.bowel!.toUpperCase() as

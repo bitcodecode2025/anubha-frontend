@@ -1,6 +1,6 @@
 export default function About() {
   return (
-    <div className="bg-white/90 rounded-3xl shadow-(--shadow-soft) px-6 sm:px-10 py-10 sm:py-14 border border-[#1a3613] backdrop-blur-lg flex flex-col items-center">
+    <div className="bg-gradient-to-br from-[#FAF6F0] via-[#F5F1EB] to-[#E8E0D5] rounded-3xl shadow-(--shadow-soft) px-6 sm:px-10 py-10 sm:py-14 border border-[#1a3613] backdrop-blur-lg flex flex-col items-center">
       <h2 className="text-3xl sm:text-4xl font-bold mb-6 text-slate-900 text-center">
         Meet Dt. Anubha
       </h2>

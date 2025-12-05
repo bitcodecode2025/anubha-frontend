@@ -120,9 +120,19 @@ export default function Navbar() {
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen((prev) => !prev)}
-                className="p-2 rounded-full bg-white/80 border border-[#dfe7dd] hover:bg-white transition"
+                className={`rounded-full bg-white/80 border border-[#dfe7dd] hover:bg-white transition overflow-hidden ${
+                  user?.role === "ADMIN" ? "p-0" : "p-2"
+                }`}
               >
-                <User className="text-emerald-700" size={24} />
+                {user?.role === "ADMIN" ? (
+                  <img
+                    src="/images/anubha_profile_hd.jpg"
+                    alt="Admin Profile"
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <User className="text-emerald-700" size={24} />
+                )}
               </button>
 
               <AnimatePresence>

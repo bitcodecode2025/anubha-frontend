@@ -16,7 +16,7 @@ export default function Hero() {
     <section className="relative flex flex-col items-center justify-center text-center overflow-hidden pb-6">
       <HeroClient fruits={fruits} />
 
-      <div className="absolute inset-0 bg-linear-to-b from-white/90 via-white/75 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#FAF6F0]/95 via-white/80 to-transparent" />
 
       <div className="relative z-10 flex flex-col items-center justify-start min-h-[70vh] sm:min-h-[60vh] px-6 max-w-3xl text-center">
         <p className="uppercase tracking-[0.35em] text-xs sm:text-sm text-emerald-600 mb-4">
@@ -25,7 +25,7 @@ export default function Hero() {
 
         <h1 className="font-extrabold text-5xl sm:text-6xl md:text-7xl text-slate-900 leading-tight tracking-tight mb-4">
           Heal with{" "}
-          <span className="text-transparent bg-clip-text bg-linear-to-r from-[#7fb77e] via-[#82c6a8] to-[#6aa6d9]">
+          <span className="text-transparent bg-clip-text bg-linear-to-r from-[#47d644] via-[#62d6a4] to-[#97c3ea]">
             Nutrition
           </span>
         </h1>

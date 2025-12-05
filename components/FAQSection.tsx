@@ -70,7 +70,10 @@ const faqs: FAQItem[] = [
 
 export default function FAQSection() {
   return (
-    <section id="faq" className="w-full py-20 px-6 md:px-10">
+    <section
+      id="faq"
+      className="w-full py-20 px-6 md:px-10 bg-gradient-to-b from-[#F0EBE0] via-[#F5F1EB] to-white"
+    >
       <div className="max-w-4xl mx-auto">
         <h2 className="text-4xl font-bold text-center text-slate-900 mb-10">
           Frequently Asked Questions

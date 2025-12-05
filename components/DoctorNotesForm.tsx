@@ -8,10 +8,14 @@ import {
   DoctorNotesFormData,
   saveDoctorNotes,
   getDoctorNotes,
+  updateDoctorNotes,
 } from "@/lib/doctor-notes-api";
+import AppointmentPreview from "./AppointmentPreview";
+import { AppointmentDetails } from "@/lib/appointments-admin";
 
 interface DoctorNotesFormProps {
   appointmentId: string;
+  appointment?: AppointmentDetails;
   patientName?: string;
   planName?: string;
   onSave?: () => void;
@@ -20,17 +24,40 @@ interface DoctorNotesFormProps {
 
 export default function DoctorNotesForm({
   appointmentId,
+  appointment,
   patientName,
   planName,
   onSave,
   onCancel,
 }: DoctorNotesFormProps) {
   const [formData, setFormData] = useState<DoctorNotesFormData>({});
+  const [originalFormData, setOriginalFormData] = useState<DoctorNotesFormData>(
+    {}
+  );
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [hasExistingNotes, setHasExistingNotes] = useState(false);
+  const [saveStartTime, setSaveStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const [openSections, setOpenSections] = useState<Set<string>>(
     new Set(["section1"])
   );
+
+  // Update elapsed time every second when saving
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (saving && saveStartTime) {
+      setElapsedTime(0);
+      interval = setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - saveStartTime) / 1000));
+      }, 1000);
+    } else {
+      setElapsedTime(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [saving, saveStartTime]);
 
   // Load existing notes on mount
   useEffect(() => {
@@ -40,13 +67,25 @@ export default function DoctorNotesForm({
   async function loadExistingNotes() {
     setLoading(true);
     try {
+      console.log(
+        "[FORM] Loading existing notes for appointment:",
+        appointmentId
+      );
       const response = await getDoctorNotes(appointmentId);
       if (response.success && response.doctorNotes?.formData) {
-        setFormData(response.doctorNotes.formData);
+        console.log("[FORM] Existing notes found, loading form data");
+        const loadedData = response.doctorNotes.formData;
+        setFormData(loadedData);
+        setOriginalFormData(JSON.parse(JSON.stringify(loadedData))); // Deep copy
+        setHasExistingNotes(true);
+      } else {
+        console.log("[FORM] No existing notes found, starting fresh");
+        setHasExistingNotes(false);
       }
     } catch (error: any) {
-      console.error("Failed to load doctor notes:", error);
+      console.error("[FORM] Failed to load doctor notes:", error);
       // Don't show error toast - it's okay if no notes exist yet
+      setHasExistingNotes(false);
     } finally {
       setLoading(false);
     }
@@ -91,27 +130,123 @@ export default function DoctorNotesForm({
     });
   }
 
+  /**
+   * Get only changed fields between original and current form data
+   */
+  function getChangedFields(
+    original: any,
+    current: any,
+    path: string[] = []
+  ): Partial<DoctorNotesFormData> {
+    const changed: any = {};
+
+    // Get all keys from both objects
+    const allKeys = new Set([
+      ...Object.keys(original || {}),
+      ...Object.keys(current || {}),
+    ]);
+
+    for (const key of allKeys) {
+      const currentPath = [...path, key];
+      const originalValue = original?.[key];
+      const currentValue = current?.[key];
+
+      if (
+        typeof originalValue === "object" &&
+        typeof currentValue === "object" &&
+        originalValue !== null &&
+        currentValue !== null &&
+        !Array.isArray(originalValue) &&
+        !Array.isArray(currentValue)
+      ) {
+        // Recursively check nested objects
+        const nestedChanges = getChangedFields(
+          originalValue,
+          currentValue,
+          currentPath
+        );
+        if (Object.keys(nestedChanges).length > 0) {
+          changed[key] = nestedChanges;
+        }
+      } else if (
+        JSON.stringify(originalValue) !== JSON.stringify(currentValue)
+      ) {
+        // Field has changed
+        changed[key] = currentValue;
+      }
+    }
+
+    return changed;
+  }
+
   async function handleSubmit(isDraft: boolean = false) {
     setSaving(true);
+    setSaveStartTime(Date.now());
+
     try {
-      await saveDoctorNotes({
-        appointmentId,
-        formData,
-        isDraft,
-      });
+      // Check if this is a partial update (has existing notes and only some fields changed)
+      const changedFields = hasExistingNotes
+        ? getChangedFields(originalFormData, formData)
+        : null;
+
+      const isPartialUpdate =
+        hasExistingNotes &&
+        changedFields &&
+        Object.keys(changedFields).length > 0 &&
+        Object.keys(changedFields).length < Object.keys(formData).length;
+
+      console.log("[FORM] Submitting doctor notes");
+      console.log("[FORM] Has existing notes:", hasExistingNotes);
+      console.log("[FORM] Is partial update:", isPartialUpdate);
+      if (changedFields) {
+        console.log("[FORM] Changed fields:", Object.keys(changedFields));
+      }
+
+      let response;
+      if (isPartialUpdate) {
+        // Use PATCH for partial updates (fast)
+        console.log("[FORM] Using PATCH for partial update");
+        response = await updateDoctorNotes(
+          appointmentId,
+          changedFields,
+          isDraft
+        );
+      } else {
+        // Use POST for full submission (new notes or full update)
+        console.log("[FORM] Using POST for full submission");
+        response = await saveDoctorNotes({
+          appointmentId,
+          formData,
+          isDraft,
+        });
+      }
+
+      // Update original form data after successful save
+      setOriginalFormData(JSON.parse(JSON.stringify(formData)));
+
+      const duration = saveStartTime ? Date.now() - saveStartTime : 0;
+      console.log(`[FORM] Save completed in ${duration}ms`);
+
       toast.success(
         isDraft
           ? "Draft saved successfully!"
+          : isPartialUpdate
+          ? "Changes saved successfully!"
           : "Doctor notes saved successfully!"
       );
       if (onSave) onSave();
     } catch (error: any) {
-      console.error("Failed to save doctor notes:", error);
+      const duration = saveStartTime ? Date.now() - saveStartTime : 0;
+      console.error(
+        `[FORM] Failed to save doctor notes (${duration}ms):`,
+        error
+      );
       toast.error(
         error?.response?.data?.error || "Failed to save doctor notes"
       );
     } finally {
       setSaving(false);
+      setSaveStartTime(null);
     }
   }
 
@@ -122,6 +257,9 @@ export default function DoctorNotesForm({
   return (
     <div className="min-h-screen py-2 sm:py-4 md:py-6 px-2 sm:px-4 md:px-6 lg:px-8 bg-gradient-to-b from-white to-emerald-50/40">
       <div className="max-w-7xl mx-auto space-y-2 sm:space-y-3 md:space-y-4 lg:space-y-6">
+        {/* Appointment Preview */}
+        {appointment && <AppointmentPreview appointment={appointment} />}
+
         {/* Header */}
         <div className="text-center mb-3 sm:mb-4 md:mb-6 lg:mb-8">
           <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-700 bg-clip-text text-transparent mb-1 sm:mb-2 md:mb-3 px-2">
@@ -140,6 +278,13 @@ export default function DoctorNotesForm({
                 <span className="block sm:inline mt-1 sm:mt-0">
                   Plan: <span className="font-semibold">{planName}</span>
                 </span>
+              </p>
+            </div>
+          )}
+          {hasExistingNotes && (
+            <div className="mt-2 sm:mt-3 bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mx-2 sm:mx-auto inline-block">
+              <p className="text-sm sm:text-base text-blue-900 font-medium">
+                📝 Editing existing notes
               </p>
             </div>
           )}
@@ -359,6 +504,20 @@ export default function DoctorNotesForm({
           />
         </Section>
 
+        {/* Section 8: Body Measurements */}
+        <Section
+          title="SECTION 8 — Body Measurements"
+          sectionId="section8"
+          isOpen={openSections.has("section8")}
+          onToggle={() => toggleSection("section8")}
+        >
+          <BodyMeasurementsSection
+            formData={formData}
+            updateFormData={updateFormData}
+            getFormValue={getFormValue}
+          />
+        </Section>
+
         {/* Submit Buttons */}
         <div className="flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-3 sm:gap-4 pt-4 sm:pt-6 md:pt-8 pb-4 sm:pb-6 md:pb-8 px-2">
           <motion.button
@@ -372,7 +531,7 @@ export default function DoctorNotesForm({
             {saving ? (
               <>
                 <Loader2 className="w-5 h-5 inline-block mr-2 animate-spin" />
-                Saving...
+                {elapsedTime > 0 ? `Saving... (${elapsedTime}s)` : "Saving..."}
               </>
             ) : (
               "Save Draft"
@@ -389,12 +548,12 @@ export default function DoctorNotesForm({
             {saving ? (
               <>
                 <Loader2 className="w-5 h-5 inline-block mr-2 animate-spin" />
-                Saving...
+                {elapsedTime > 0 ? `Saving... (${elapsedTime}s)` : "Saving..."}
               </>
             ) : (
               <>
                 <Save className="w-4 h-4 sm:w-5 sm:h-5 inline-block mr-2" />
-                Submit Form
+                {hasExistingNotes ? "Save Changes" : "Submit Form"}
               </>
             )}
           </motion.button>
@@ -515,7 +674,7 @@ function Input({
 }: InputProps) {
   return (
     <div className="input-group">
-      <label className="block font-semibold mb-2 text-slate-700 text-sm sm:text-base">
+      <label className="block font-semibold mb-2 text-[#4A4842] text-sm sm:text-base">
         {label}
       </label>
       <motion.input
@@ -523,8 +682,8 @@ function Input({
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="form-input w-full border-2 border-slate-200 bg-white/90 p-3 sm:p-3.5 rounded-lg text-slate-900 text-base focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-300 transition-all duration-300 touch-manipulation"
-        whileFocus={{ scale: 1.01, borderColor: "rgb(52, 211, 153)" }}
+        className="form-input w-full border-2 border-[#D4C4B0] bg-[#FAF6F0] p-3 sm:p-3.5 rounded-lg text-[#2D2A24] text-base focus:border-[#6B9B6A] focus:bg-[#F7F3ED] focus:ring-2 focus:ring-[#6B9B6A]/50 transition-all duration-300 touch-manipulation"
+        whileFocus={{ scale: 1.01, borderColor: "#6B9B6A" }}
         transition={{ type: "spring", stiffness: 300, damping: 20 }}
       />
     </div>
@@ -2962,6 +3121,205 @@ function DietPrescribedSection({
         value={dietPrescribed.code || ""}
         onChange={(val) => updateFormData(["dietPrescribed", "code"], val)}
       />
+    </div>
+  );
+}
+
+function BodyMeasurementsSection({
+  formData,
+  updateFormData,
+  getFormValue,
+}: any) {
+  const bodyMeasurements = getFormValue(["bodyMeasurements"]) || {};
+
+  return (
+    <div className="space-y-6">
+      {/* Upper Body Subsection */}
+      <SubSection title="Upper Body">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
+          <Input
+            label="Neck"
+            type="number"
+            value={bodyMeasurements.neck || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "neck"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Chest"
+            type="number"
+            value={bodyMeasurements.chest || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "chest"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Chest (Female)"
+            type="number"
+            value={bodyMeasurements.chestFemale || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "chestFemale"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Normal Chest (Lung)"
+            type="number"
+            value={bodyMeasurements.normalChestLung || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "normalChestLung"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Expanded Chest (Lungs)"
+            type="number"
+            value={bodyMeasurements.expandedChestLungs || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "expandedChestLungs"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Arms"
+            type="number"
+            value={bodyMeasurements.arms || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "arms"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Forearms"
+            type="number"
+            value={bodyMeasurements.forearms || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "forearms"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Wrist"
+            type="number"
+            value={bodyMeasurements.wrist || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "wrist"], val)
+            }
+            placeholder="in cm"
+          />
+        </div>
+      </SubSection>
+
+      {/* Lower Body Subsection */}
+      <SubSection title="Lower Body">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
+          <Input
+            label="Abdomen Upper"
+            type="number"
+            value={bodyMeasurements.abdomenUpper || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "abdomenUpper"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Abdomen Lower"
+            type="number"
+            value={bodyMeasurements.abdomenLower || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "abdomenLower"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Waist"
+            type="number"
+            value={bodyMeasurements.waist || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "waist"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Hip"
+            type="number"
+            value={bodyMeasurements.hip || ""}
+            onChange={(val) => updateFormData(["bodyMeasurements", "hip"], val)}
+            placeholder="in cm"
+          />
+          <Input
+            label="Thigh Upper"
+            type="number"
+            value={bodyMeasurements.thighUpper || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "thighUpper"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Thigh Lower"
+            type="number"
+            value={bodyMeasurements.thighLower || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "thighLower"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Calf"
+            type="number"
+            value={bodyMeasurements.calf || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "calf"], val)
+            }
+            placeholder="in cm"
+          />
+          <Input
+            label="Ankle"
+            type="number"
+            value={bodyMeasurements.ankle || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "ankle"], val)
+            }
+            placeholder="in cm"
+          />
+        </div>
+      </SubSection>
+
+      {/* Reference Image */}
+      <div className="mt-8 pt-6 border-t-2 border-[#D4C4B0]">
+        <h4 className="text-lg sm:text-xl font-semibold text-[#4A7A49] mb-4 text-center">
+          Body Measurements Reference Guide
+        </h4>
+        <div className="flex justify-center">
+          <div className="w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl">
+            <img
+              src="/images/body-measurements-reference.jpg"
+              alt="Body Measurements Reference Guide"
+              className="w-full h-auto rounded-lg shadow-lg object-contain mx-auto"
+              style={{ maxHeight: "800px" }}
+              onError={(e) => {
+                // Fallback if image doesn't exist
+                const target = e.target as HTMLImageElement;
+                target.style.display = "none";
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.innerHTML = `
+                    <div class="bg-[#E8E0D6] border-2 border-[#D4C4B0] rounded-lg p-6 sm:p-8 text-center">
+                      <p class="text-[#4A4842] text-sm sm:text-base">
+                        Reference image will be displayed here.<br/>
+                        Please add the image at: <code class="text-[#6B9B6A] bg-[#F7F3ED] px-2 py-1 rounded">/public/images/body-measurements-reference.jpg</code>
+                      </p>
+                    </div>
+                  `;
+                }
+              }}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

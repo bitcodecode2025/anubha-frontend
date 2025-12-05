@@ -13,8 +13,7 @@ export default function DoctorNotesPage() {
   const { user, loading: authLoading } = useAuth();
   const appointmentId = params.id as string;
 
-  const [patientName, setPatientName] = useState<string>("");
-  const [planName, setPlanName] = useState<string>("");
+  const [appointment, setAppointment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,21 +37,23 @@ export default function DoctorNotesPage() {
   async function loadAppointmentData() {
     setLoading(true);
     try {
+      console.log("[PAGE] Loading appointment data for:", appointmentId);
       const response = await getAppointmentDetails(appointmentId);
-      setPatientName(response.appointment.patient.name);
-      setPlanName(response.appointment.planName);
+      console.log("[PAGE] Appointment data loaded:", response.appointment);
+      setAppointment(response.appointment);
     } catch (error: any) {
-      console.error("Failed to load appointment data:", error);
+      console.error("[PAGE] Failed to load appointment data:", error);
     } finally {
       setLoading(false);
     }
   }
 
   function handleSave() {
-    // Refresh appointment data after save
-    loadAppointmentData();
-    // Optionally navigate back
-    // router.push(`/admin/appointments/${appointmentId}`);
+    console.log(
+      "[NOTES PAGE] Notes saved, navigating back to appointment details"
+    );
+    // Navigate back to appointment details to show the preview
+    router.push(`/admin/appointments/${appointmentId}`);
   }
 
   function handleCancel() {
@@ -104,13 +105,14 @@ export default function DoctorNotesPage() {
         </button>
 
         {/* Form Component */}
-        <DoctorNotesForm
-          appointmentId={appointmentId}
-          patientName={patientName}
-          planName={planName}
-          onSave={handleSave}
-          onCancel={handleCancel}
-        />
+        {appointment && (
+          <DoctorNotesForm
+            appointmentId={appointmentId}
+            appointment={appointment}
+            onSave={handleSave}
+            onCancel={handleCancel}
+          />
+        )}
       </div>
     </main>
   );

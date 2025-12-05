@@ -246,7 +246,7 @@ export default function RecallPage() {
     });
 
     if (validEntries.length === 0) {
-      console.error("[RECALL SUBMISSION] No valid recall entries");
+      console.log("[RECALL SUBMISSION] No valid recall entries");
       setError("Please add at least one complete recall entry");
       toast.error("Please add at least one complete recall entry");
       return;
@@ -295,7 +295,10 @@ export default function RecallPage() {
           );
           console.log("[RECALL SUBMISSION] Files linked successfully");
         } catch (fileError: any) {
-          console.error("[RECALL SUBMISSION] File linking error:", fileError);
+          console.log(
+            "[RECALL SUBMISSION] File linking error:",
+            fileError.message
+          );
           // Don't fail the entire submission if file linking fails
           console.warn(
             "[RECALL SUBMISSION] Continuing despite file linking error"

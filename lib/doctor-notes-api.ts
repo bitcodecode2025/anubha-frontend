@@ -236,6 +236,28 @@ export interface DoctorNotesFormData {
     code?: string;
   };
 
+  // Section 8: Body Measurements
+  bodyMeasurements?: {
+    // Upper Body
+    neck?: string;
+    chest?: string;
+    chestFemale?: string;
+    normalChestLung?: string;
+    expandedChestLungs?: string;
+    arms?: string;
+    forearms?: string;
+    wrist?: string;
+    // Lower Body
+    abdomenUpper?: string;
+    abdomenLower?: string;
+    waist?: string;
+    hip?: string;
+    thighUpper?: string;
+    thighLower?: string;
+    calf?: string;
+    ankle?: string;
+  };
+
   // General notes
   notes?: string;
 }
@@ -270,11 +292,25 @@ export interface GetDoctorNotesResponse {
 }
 
 /**
- * Save doctor notes to backend
+ * Save doctor notes to backend (full form submission)
  */
 export async function saveDoctorNotes(
   data: SaveDoctorNotesRequest
 ): Promise<SaveDoctorNotesResponse> {
+  console.log("[API] saveDoctorNotes - Starting full form submission");
+  console.log("[API] saveDoctorNotes - Appointment ID:", data.appointmentId);
+  console.log("[API] saveDoctorNotes - Is Draft:", data.isDraft);
+  console.log(
+    "[API] saveDoctorNotes - Form Data Keys:",
+    Object.keys(data.formData)
+  );
+  console.log(
+    "[API] saveDoctorNotes - Form Data Size:",
+    JSON.stringify(data.formData).length,
+    "bytes"
+  );
+
+  const startTime = Date.now();
   const formData = new FormData();
   formData.append("appointmentId", data.appointmentId);
   formData.append("formData", JSON.stringify(data.formData));
@@ -282,19 +318,90 @@ export async function saveDoctorNotes(
 
   // Handle file upload if present
   if (data.formData.dietPrescribed?.dietChartFile) {
+    console.log(
+      "[API] saveDoctorNotes - Including diet chart file:",
+      data.formData.dietPrescribed.dietChartFile.name
+    );
     formData.append("dietChart", data.formData.dietPrescribed.dietChartFile);
   }
 
-  const res = await api.post<SaveDoctorNotesResponse>(
-    "admin/doctor-notes",
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
+  try {
+    const res = await api.post<SaveDoctorNotesResponse>(
+      "admin/doctor-notes",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    const duration = Date.now() - startTime;
+    console.log(
+      `[API] saveDoctorNotes - Success (${duration}ms) - Response:`,
+      res.data
+    );
+    return res.data;
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(
+      `[API] saveDoctorNotes - Error (${duration}ms):`,
+      error?.response?.data || error?.message
+    );
+    throw error;
+  }
+}
+
+/**
+ * Update doctor notes partially (PATCH for fast editing)
+ */
+export async function updateDoctorNotes(
+  appointmentId: string,
+  partialData: Partial<DoctorNotesFormData>,
+  isDraft: boolean = false
+): Promise<SaveDoctorNotesResponse> {
+  console.log("[API] updateDoctorNotes - Starting partial update");
+  console.log("[API] updateDoctorNotes - Appointment ID:", appointmentId);
+  console.log("[API] updateDoctorNotes - Is Draft:", isDraft);
+  console.log(
+    "[API] updateDoctorNotes - Changed Fields:",
+    Object.keys(partialData)
   );
-  return res.data;
+  console.log(
+    "[API] updateDoctorNotes - Partial Data Size:",
+    JSON.stringify(partialData).length,
+    "bytes"
+  );
+
+  const startTime = Date.now();
+  const formData = new FormData();
+  formData.append("appointmentId", appointmentId);
+  formData.append("formData", JSON.stringify(partialData));
+  formData.append("isDraft", String(isDraft));
+
+  try {
+    const res = await api.patch<SaveDoctorNotesResponse>(
+      `admin/doctor-notes/${appointmentId}`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    const duration = Date.now() - startTime;
+    console.log(
+      `[API] updateDoctorNotes - Success (${duration}ms) - Response:`,
+      res.data
+    );
+    return res.data;
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(
+      `[API] updateDoctorNotes - Error (${duration}ms):`,
+      error?.response?.data || error?.message
+    );
+    throw error;
+  }
 }
 
 /**
@@ -303,8 +410,33 @@ export async function saveDoctorNotes(
 export async function getDoctorNotes(
   appointmentId: string
 ): Promise<GetDoctorNotesResponse> {
-  const res = await api.get<GetDoctorNotesResponse>(
-    `admin/doctor-notes/${appointmentId}`
+  console.log(
+    "[API] getDoctorNotes - Fetching notes for appointment:",
+    appointmentId
   );
-  return res.data;
+  const startTime = Date.now();
+  try {
+    const res = await api.get<GetDoctorNotesResponse>(
+      `admin/doctor-notes/${appointmentId}`
+    );
+    const duration = Date.now() - startTime;
+    console.log(
+      `[API] getDoctorNotes - Success (${duration}ms) - Notes exist:`,
+      !!res.data.doctorNotes
+    );
+    if (res.data.doctorNotes) {
+      console.log(
+        "[API] getDoctorNotes - Form Data Keys:",
+        Object.keys(res.data.doctorNotes.formData || {})
+      );
+    }
+    return res.data;
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(
+      `[API] getDoctorNotes - Error (${duration}ms):`,
+      error?.response?.data || error?.message
+    );
+    throw error;
+  }
 }
