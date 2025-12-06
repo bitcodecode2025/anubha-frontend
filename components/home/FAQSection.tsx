@@ -1,4 +1,6 @@
-import FAQAccordionClient, { FAQItem } from "@/components/FAQAccordionClient";
+import FAQAccordionClient, {
+  FAQItem,
+} from "@/components/home/FAQAccordionClient";
 
 const faqs: FAQItem[] = [
   {

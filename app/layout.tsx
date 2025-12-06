@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./context/AuthContext";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 import ThemeContextProvider from "@/lib/themeProvider";
 import Providers from "./Providers"; // 🌟 Global Booking Provider Wrapper
-import LogoutAnimation from "@/components/LogoutAnimation";
+import LogoutAnimation from "@/components/ui/LogoutAnimation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

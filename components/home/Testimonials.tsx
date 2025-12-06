@@ -1,6 +1,6 @@
 import TestimonialsClient, {
   Testimonial,
-} from "@/components/TestimonialsClient";
+} from "@/components/home/TestimonialsClient";
 
 const testimonials: Testimonial[] = [
   {

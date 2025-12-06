@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useBookingForm } from "../context/BookingFormContext";
-import { calcAgeFromDOB } from "../utilis/calcAge";
+import { calcAgeFromDOB } from "../utils/calcAge";
 
 interface StepPersonalProps {
   error?: string | null;

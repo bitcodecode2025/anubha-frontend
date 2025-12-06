@@ -23,7 +23,7 @@ import {
   DayOff,
   AdminSlot,
 } from "@/lib/slots-admin";
-import SuccessNotification from "@/components/SuccessNotification";
+import SuccessNotification from "@/components/ui/SuccessNotification";
 import toast from "react-hot-toast";
 
 export default function EditSlotsPage() {

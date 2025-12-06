@@ -123,8 +123,8 @@ export default function PlanCard({
           appointmentId: appointmentResponse.data.id,
         });
 
-        // Navigate directly to slot selection since patient already exists
-        router.push("/book/slot");
+        // Navigate directly to recall page since patient already exists
+        router.push("/book/recall");
       } catch (error: any) {
         console.error("Failed to create appointment:", error);
         toast.error(

@@ -173,6 +173,9 @@ export default function Footer() {
         <p className="text-center text-sm text-slate-500">
           © {currentYear} Anubha's Nutrition Clinic — All rights reserved.
         </p>
+        <div>
+          <p className="text-white text-sm">made by tanishk khare</p>
+        </div>
       </div>
     </footer>
   );

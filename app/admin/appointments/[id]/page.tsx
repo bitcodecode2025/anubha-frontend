@@ -20,7 +20,7 @@ import {
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { getDoctorNotes } from "@/lib/doctor-notes-api";
-import DoctorNotesPreview from "@/components/DoctorNotesPreview";
+import DoctorNotesPreview from "@/components/doctor-notes/DoctorNotesPreview";
 
 // Skeleton Loader Component
 function SkeletonLoader() {
@@ -119,7 +119,10 @@ export default function AppointmentDetailsPage() {
     try {
       console.log("[APPOINTMENT DETAILS] Fetching appointment:", appointmentId);
       const response = await getAppointmentDetails(appointmentId);
-      console.log("[APPOINTMENT DETAILS] Appointment loaded:", response.appointment);
+      console.log(
+        "[APPOINTMENT DETAILS] Appointment loaded:",
+        response.appointment
+      );
       setAppointment(response.appointment);
     } catch (error: any) {
       console.error("[APPOINTMENT DETAILS] Failed to fetch:", error);
@@ -135,17 +138,26 @@ export default function AppointmentDetailsPage() {
   async function fetchDoctorNotes() {
     setLoadingNotes(true);
     try {
-      console.log("[APPOINTMENT DETAILS] Fetching doctor notes for:", appointmentId);
+      console.log(
+        "[APPOINTMENT DETAILS] Fetching doctor notes for:",
+        appointmentId
+      );
       const response = await getDoctorNotes(appointmentId);
       if (response.success && response.doctorNotes) {
-        console.log("[APPOINTMENT DETAILS] Doctor notes found:", response.doctorNotes);
+        console.log(
+          "[APPOINTMENT DETAILS] Doctor notes found:",
+          response.doctorNotes
+        );
         setDoctorNotes(response.doctorNotes);
       } else {
         console.log("[APPOINTMENT DETAILS] No doctor notes found");
         setDoctorNotes(null);
       }
     } catch (error: any) {
-      console.error("[APPOINTMENT DETAILS] Failed to fetch doctor notes:", error);
+      console.error(
+        "[APPOINTMENT DETAILS] Failed to fetch doctor notes:",
+        error
+      );
       setDoctorNotes(null);
     } finally {
       setLoadingNotes(false);
@@ -577,7 +589,9 @@ export default function AppointmentDetailsPage() {
               createdAt={doctorNotes.createdAt}
               updatedAt={doctorNotes.updatedAt}
               isDraft={doctorNotes.isDraft}
-              onEdit={() => router.push(`/admin/appointments/${appointmentId}/notes`)}
+              onEdit={() =>
+                router.push(`/admin/appointments/${appointmentId}/notes`)
+              }
             />
           </div>
         ) : null}

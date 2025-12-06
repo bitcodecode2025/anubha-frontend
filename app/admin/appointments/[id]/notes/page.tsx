@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import { getAppointmentDetails } from "@/lib/appointments-admin";
 import { Loader2, ChevronLeft } from "lucide-react";
-import DoctorNotesForm from "@/components/DoctorNotesForm";
+import DoctorNotesForm from "@/components/doctor-notes/DoctorNotesForm";
 
 export default function DoctorNotesPage() {
   const router = useRouter();

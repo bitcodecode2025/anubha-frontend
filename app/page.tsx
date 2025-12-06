@@ -1,10 +1,10 @@
-import Hero from "@/components/Hero";
-import About from "@/components/About";
-import Testimonials from "@/components/Testimonials";
-import HowItWorks from "@/components/HowItWorks";
-import OnlineProgram from "@/components/OnlineProgram";
-import BloodTestBooking from "@/components/BloodTestBooking";
-import FAQSection from "@/components/FAQSection";
+import Hero from "@/components/home/Hero";
+import About from "@/components/home/About";
+import Testimonials from "@/components/home/Testimonials";
+import HowItWorks from "@/components/home/HowItWorks";
+import OnlineProgram from "@/components/home/OnlineProgram";
+import BloodTestBooking from "@/components/home/BloodTestBooking";
+import FAQSection from "@/components/home/FAQSection";
 
 export default function HomePage() {
   return (

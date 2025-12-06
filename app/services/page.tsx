@@ -2,12 +2,12 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
-import PlanCard from "@/components/PlanCard";
-import { plans } from "@/app/services/plan";
+import PlanCard from "@/components/home/PlanCard";
+import { plans } from "@/lib/constants/plan";
 import { useBookingForm } from "@/app/book/context/BookingFormContext";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import PatientSelectionModal from "@/components/PatientSelectionModal";
+import PatientSelectionModal from "@/components/doctor-notes/PatientSelectionModal";
 import toast from "react-hot-toast";
 
 const GENERAL_CONSULTATION = {
@@ -90,8 +90,8 @@ export default function ServicesPage() {
         ...pendingBooking,
         patientId,
       });
-      // Navigate directly to slot selection since patient already exists
-      router.push("/book/slot");
+      // Navigate directly to recall page since patient already exists
+      router.push("/book/recall");
     }
   }
 

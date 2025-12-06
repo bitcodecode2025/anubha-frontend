@@ -4,8 +4,16 @@ import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useBookingForm } from "../context/BookingFormContext";
 import { createOrder, verifyPayment, getExistingOrder } from "@/lib/payment";
-import { Loader2, CheckCircle, XCircle, CreditCard } from "lucide-react";
+import {
+  Loader2,
+  CheckCircle,
+  XCircle,
+  CreditCard,
+  AlertTriangle,
+  RefreshCw,
+} from "lucide-react";
 import toast from "react-hot-toast";
+import PendingAppointments from "@/components/payment/PendingAppointments";
 
 declare global {
   interface Window {
@@ -48,7 +56,7 @@ function safeToast(
 }
 
 export default function PaymentPage() {
-  const { form, resetForm } = useBookingForm();
+  const { form, setForm, resetForm } = useBookingForm();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -56,17 +64,26 @@ export default function PaymentPage() {
   const [isRazorpayReady, setIsRazorpayReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resumingPayment, setResumingPayment] = useState(false);
+  const [showPendingAppointments, setShowPendingAppointments] = useState(true); // Show by default
+  const [errorType, setErrorType] = useState<
+    "payment" | "network" | "validation" | "session" | "unknown"
+  >("unknown");
   const razorpayLoaded = useRef(false);
   const paymentInitiatedRef = useRef(false); // Prevent double payment initiation
   const [paymentResponse, setPaymentResponse] = useState<any>(null); // Store payment response for verification
 
   /* -------------------------------------------------
-      BLOCK DIRECT ACCESS
+      BLOCK DIRECT ACCESS & CHECK FOR PENDING APPOINTMENTS
   -------------------------------------------------- */
   useEffect(() => {
     if (!form.appointmentId || !form.slotId || !form.planSlug) {
-      safeToast("error", "Please complete the booking process first");
-      router.replace("/services");
+      // If no current booking, show pending appointments
+      setShowPendingAppointments(true);
+      safeToast(
+        "error",
+        "Please complete the booking process first or continue with a pending appointment"
+      );
+      // Don't redirect immediately - let user see pending appointments
       return;
     }
   }, [form.appointmentId, form.slotId, form.planSlug, router]);
@@ -99,6 +116,8 @@ export default function PaymentPage() {
       );
       setIsRazorpayReady(false);
       setError("Payment gateway failed to load. Please refresh the page.");
+      setErrorType("network");
+      setShowPendingAppointments(true);
     };
     document.body.appendChild(script);
 
@@ -175,8 +194,10 @@ export default function PaymentPage() {
           "Payment verification failed. Please contact support with your payment ID.";
         safeToast("error", errorMsg);
         setError(errorMsg);
+        setErrorType("payment");
         setProcessing(false);
         paymentInitiatedRef.current = false; // Allow retry
+        setShowPendingAppointments(true); // Show pending appointments on verification failure
       }
     };
 
@@ -250,6 +271,7 @@ export default function PaymentPage() {
                 }
                 setProcessing(false);
                 paymentInitiatedRef.current = false; // Allow retry
+                setShowPendingAppointments(true); // Show pending appointments when cancelled
               }
             } catch (err) {
               console.error("[PAYMENT] Ondismiss error:", err);
@@ -274,8 +296,10 @@ export default function PaymentPage() {
           if (typeof window !== "undefined" && window.document) {
             safeToast("error", errorDescription, 0);
             setError(errorDescription);
+            setErrorType("payment");
             setProcessing(false);
             paymentInitiatedRef.current = false; // Allow retry
+            setShowPendingAppointments(true); // Show pending appointments on failure
           }
         } catch (err) {
           console.error("[PAYMENT] Payment failed handler error:", err);
@@ -399,17 +423,74 @@ export default function PaymentPage() {
       startRazorpayPayment(order);
     } catch (error: any) {
       console.error("[PAYMENT] Payment initiation error:", error);
+
+      // Determine error type
+      let errorType:
+        | "payment"
+        | "network"
+        | "validation"
+        | "session"
+        | "unknown" = "unknown";
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        errorType = "session";
+      } else if (
+        error?.response?.status === 400 ||
+        error?.response?.status === 422
+      ) {
+        errorType = "validation";
+      } else if (!error?.response || error?.code === "NETWORK_ERROR") {
+        errorType = "network";
+      } else {
+        errorType = "payment";
+      }
+
       const errorMsg =
         error?.response?.data?.error ||
         error?.message ||
         "Failed to initiate payment. Please try again.";
       safeToast("error", errorMsg);
       setError(errorMsg);
+      setErrorType(errorType);
       paymentInitiatedRef.current = false; // Allow retry
       setLoading(false);
       setResumingPayment(false);
+      setShowPendingAppointments(true); // Show pending appointments on error
     }
   }
+
+  /* -------------------------------------------------
+      HANDLE RESUME PAYMENT FROM PENDING APPOINTMENTS
+  -------------------------------------------------- */
+  const handleResumePayment = (appointmentId: string, orderId: string) => {
+    // Update form context with the appointment ID
+    setForm({
+      ...form,
+      appointmentId,
+    });
+
+    // Fetch order details and start payment
+    getExistingOrder(appointmentId)
+      .then((orderResponse) => {
+        if (orderResponse.success && orderResponse.order) {
+          setOrderCreated(true);
+          setError(null);
+          setShowPendingAppointments(false);
+          startRazorpayPayment(orderResponse.order);
+        } else {
+          throw new Error(
+            orderResponse.error || "Failed to fetch payment order"
+          );
+        }
+      })
+      .catch((error: any) => {
+        console.error("[PAYMENT] Failed to resume payment:", error);
+        safeToast(
+          "error",
+          error?.message || "Failed to resume payment. Please try again."
+        );
+        setError(error?.message || "Failed to resume payment");
+      });
+  };
 
   /* -------------------------------------------------
       UI RENDER
@@ -482,14 +563,83 @@ export default function PaymentPage() {
           </div>
         )}
 
-        {/* Error Message */}
+        {/* Error Message with Fallback Actions */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2 text-red-700">
-              <XCircle className="w-5 h-5 shrink-0" />
-              <p className="text-sm">{error}</p>
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 shrink-0 text-red-600 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800 mb-1">
+                  {errorType === "session" && "Session Expired"}
+                  {errorType === "network" && "Network Error"}
+                  {errorType === "validation" && "Validation Error"}
+                  {errorType === "payment" && "Payment Failed"}
+                  {errorType === "unknown" && "Error Occurred"}
+                </p>
+                <p className="text-sm text-red-700 mb-3">{error}</p>
+
+                {/* Fallback Actions Based on Error Type */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {errorType === "session" && (
+                    <button
+                      onClick={() => {
+                        router.push("/login");
+                      }}
+                      className="text-xs px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                    >
+                      Login Again
+                    </button>
+                  )}
+                  {errorType === "network" && (
+                    <button
+                      onClick={() => {
+                        window.location.reload();
+                      }}
+                      className="text-xs px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                    >
+                      Refresh Page
+                    </button>
+                  )}
+                  {(errorType === "payment" || errorType === "unknown") && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setError(null);
+                          initiatePayment();
+                        }}
+                        className="text-xs px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Retry Payment
+                      </button>
+                      <button
+                        onClick={() => {
+                          router.push("/book/slot");
+                        }}
+                        className="text-xs px-3 py-1.5 bg-slate-600 text-white rounded hover:bg-slate-700 transition-colors"
+                      >
+                        Change Slot
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      setShowPendingAppointments(true);
+                    }}
+                    className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
+                  >
+                    View Pending Appointments
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
+        )}
+
+        {/* Pending Appointments Section */}
+        {showPendingAppointments && (
+          <PendingAppointments onResumePayment={handleResumePayment} />
         )}
 
         {/* Payment Button */}
@@ -499,7 +649,7 @@ export default function PaymentPage() {
             disabled={
               loading || processing || !isRazorpayReady || resumingPayment
             }
-            className="w-full py-4 bg-emerald-600 text-white rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors"
+            className="w-full py-4 bg-emerald-600 text-white rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors shadow-md hover:shadow-lg"
           >
             {processing ? (
               <>
@@ -512,6 +662,11 @@ export default function PaymentPage() {
                 {resumingPayment
                   ? "Resuming Payment..."
                   : "Preparing Payment..."}
+              </>
+            ) : error ? (
+              <>
+                <RefreshCw className="w-5 h-5" />
+                Retry Payment
               </>
             ) : (
               <>

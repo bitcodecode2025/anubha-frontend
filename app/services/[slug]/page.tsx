@@ -1,5 +1,5 @@
 import { plans } from "../plan";
-import PlanCard from "@/components/PlanCard";
+import PlanCard from "@/components/home/PlanCard";
 import { notFound } from "next/navigation";
 
 export default async function ServiceDetails({
