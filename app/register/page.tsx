@@ -24,8 +24,25 @@ const extractError = (err: any): string => {
   return "Something went wrong. Please try again.";
 };
 
+/* ------------------ TYPES ------------------ */
+interface RegisterOtpResponse {
+  user: {
+    id: string;
+    name: string;
+    phone: string;
+    role: string;
+  };
+  token?: string;
+  message?: string;
+}
+
 /* ------------------ TIMER CIRCLE ------------------ */
-const TimerCircle = ({ seconds, total = 60 }) => {
+interface TimerCircleProps {
+  seconds: number;
+  total?: number;
+}
+
+const TimerCircle = ({ seconds, total = 60 }: TimerCircleProps) => {
   const radius = 12;
   const circumference = 2 * Math.PI * radius;
   const progress = ((total - seconds) / total) * circumference;
@@ -210,15 +227,17 @@ export default function Register() {
     try {
       setLoadingVerify(true);
 
-      const res = await verifyRegisterOtp({
+      const res = (await verifyRegisterOtp({
         name,
         phone: phone.replace(/\D/g, ""),
         otp: otpValue,
-      });
+      })) as RegisterOtpResponse;
 
       // AUTO LOGIN USING SERVER RESPONSE
-      login(res.user);
-
+      if (res.user) {
+        login(res.user);
+        // console.log(res.user);
+      }
       toast.success("Account created!");
       router.push("/");
     } catch (err: any) {

@@ -1,4 +1,4 @@
-import axios, { AxiosError } from "axios";
+import axios from "axios";
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -25,12 +25,19 @@ api.interceptors.request.use(
 // Response interceptor to handle errors gracefully
 api.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
+  (error: unknown) => {
+    // Type guard to check if error is an AxiosError-like object
+    const axiosError = error as {
+      response?: { status: number; data: any };
+      request?: any;
+      message?: string;
+      config?: { url?: string };
+    };
     // Only log errors that aren't expected (like 401, 400 with validation errors)
-    if (error.response) {
-      const status = error.response.status;
-      const data = error.response.data as any;
-      const url = error.config?.url || "";
+    if (axiosError.response) {
+      const status = axiosError.response.status;
+      const data = axiosError.response.data as any;
+      const url = axiosError.config?.url || "";
 
       // Handle 401 Unauthorized - clear auth state
       if (status === 401) {
@@ -65,15 +72,15 @@ api.interceptors.response.use(
       if (status >= 500) {
         console.error("Server error:", error);
       }
-    } else if (error.request) {
+    } else if (axiosError.request) {
       // Request was made but no response received
       // Only log if it's not a network error (which might be expected)
-      if (error.message && !error.message.includes("Network Error")) {
-        console.error("Network error:", error.message);
+      if (axiosError.message && !axiosError.message.includes("Network Error")) {
+        console.error("Network error:", axiosError.message);
       }
     } else {
       // Something else happened
-      console.error("Error:", error.message);
+      console.error("Error:", axiosError.message);
     }
 
     return Promise.reject(error);

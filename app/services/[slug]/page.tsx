@@ -1,4 +1,4 @@
-import { plans } from "../plan";
+import { plans } from "@/lib/constants/plan";
 import PlanCard from "@/components/home/PlanCard";
 import { notFound } from "next/navigation";
 
