@@ -346,16 +346,30 @@ export default function RecallPage() {
       }
 
       // Create appointment with PENDING status first (to get appointmentId)
-      // TODO: For testing purposes, using ₹1 for general-consultation.
-      // This will be changed to use actual plan price from backend after successful testing.
-      const planPrice =
-        form.planSlug === "general-consultation" ? 1 : form.planPriceRaw || 1;
+      // Extract price from planPriceRaw if available, otherwise parse from planPrice string
+      let planPrice: number;
+      if (form.planPriceRaw && form.planPriceRaw > 0) {
+        planPrice = form.planPriceRaw;
+      } else if (form.planPrice) {
+        // Parse price from string like "₹6,800 per session" or "₹3,000"
+        const priceMatch = form.planPrice.match(/₹?\s*([\d,]+)/);
+        planPrice = priceMatch 
+          ? Number(priceMatch[1].replace(/,/g, "")) 
+          : 0;
+        
+        if (!planPrice || planPrice === 0) {
+          console.error(`[RECALL] Failed to parse price from: "${form.planPrice}"`);
+          throw new Error(`Invalid plan price. Please select a plan again.`);
+        }
+      } else {
+        throw new Error(`Plan price is missing. Please select a plan again.`);
+      }
 
       const appointmentData = {
         patientId: form.patientId,
         planSlug: form.planSlug,
         planName: form.planName,
-        planPrice: planPrice, // Using ₹1 for testing (general-consultation)
+        planPrice: planPrice, // Correctly parsed from planPriceRaw or planPrice string
         planDuration: planDuration, // Always provide a duration (required field)
         planPackageName: form.planPackageName || undefined,
         appointmentMode: appointmentMode, // Always valid: "IN_PERSON" or "ONLINE"

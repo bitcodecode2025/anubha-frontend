@@ -95,14 +95,17 @@ export default function UserDetailsPage() {
         hasAllFields: !!(form.fullName && form.mobile && form.email),
       });
 
-      // IMPORTANT: Always create a new patient when user fills the form and proceeds to recall
-      // Clear any stale patientId from localStorage/form state before creating new patient
+      // If patientId already exists (existing patient selected), skip creation and proceed to recall
+      // This handles the edge case where existing user selects a patient for weight loss plan
       if (form.patientId) {
         console.log(
-          "[PATIENT CREATION] Clearing stale patientId:",
-          form.patientId
+          "[PATIENT CREATION] Patient already exists with ID:",
+          form.patientId,
+          "- Skipping creation and proceeding to recall"
         );
-        setForm({ patientId: null });
+        toast.success("Proceeding to recall page");
+        router.push("/book/recall");
+        return;
       }
 
       console.log("[PATIENT CREATION] Creating new patient from form data");

@@ -4,6 +4,7 @@ export interface Appointment {
   id: string;
   startAt: string;
   endAt: string;
+  createdAt: string;
   status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
   mode: "IN_PERSON" | "ONLINE";
   planName: string;
@@ -20,6 +21,7 @@ export interface AppointmentDetails {
   id: string;
   startAt: string;
   endAt: string;
+  createdAt: string;
   status: string;
   mode: string;
   planName: string;
@@ -161,6 +163,50 @@ export async function updateAppointmentStatus(
     return res.data;
   } catch (error: any) {
     console.error("Failed to update appointment status:", error);
+    throw error;
+  }
+}
+
+export interface DeleteAppointmentResponse {
+  success: boolean;
+  message: string;
+  scope?: "admin" | "global";
+}
+
+export interface DeleteAppointmentRequest {
+  reason?: string;
+  scope?: "admin" | "global";
+}
+
+/**
+ * Delete appointment from admin view (admin-only soft delete)
+ * By default, this only removes the appointment from admin dashboard.
+ * User will still be able to see their appointment.
+ * 
+ * To archive globally (remove from both admin and user views), set scope: "global"
+ */
+export async function deleteAppointment(
+  appointmentId: string,
+  options?: DeleteAppointmentRequest
+): Promise<DeleteAppointmentResponse> {
+  try {
+    // Use PATCH endpoint for admin-delete (supports body with reason/scope)
+    // Falls back to DELETE for backward compatibility if no options provided
+    if (options && (options.reason || options.scope)) {
+      const res = await api.patch<DeleteAppointmentResponse>(
+        `admin/appointments/${appointmentId}/admin-delete`,
+        options
+      );
+      return res.data;
+    } else {
+      // Default: admin-only delete (backward compatible)
+      const res = await api.delete<DeleteAppointmentResponse>(
+        `admin/appointments/${appointmentId}`
+      );
+      return res.data;
+    }
+  } catch (error: any) {
+    console.error("Failed to delete appointment:", error);
     throw error;
   }
 }

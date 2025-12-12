@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { motion, Variants } from "framer-motion";
 
 export type Testimonial = {
@@ -55,9 +56,11 @@ export default function TestimonialsClient({ testimonials }: Props) {
             }}
             className="w-full flex flex-col items-center"
           >
-            <img
+            <Image
               src={testimonial.img}
               alt={testimonial.name}
+              width={312}
+              height={312}
               className="w-64 h-64 sm:w-68 sm:h-68 md:w-78 md:h-78 rounded-3xl object-cover shadow-xl border border-white/70 mb-6"
             />
 

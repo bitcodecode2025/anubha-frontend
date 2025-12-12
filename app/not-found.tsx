@@ -17,7 +17,7 @@ export default function NotFound() {
         >
           <div className="relative w-full max-w-3xl h-[400px] sm:h-[500px] md:h-[600px]">
             <Image
-              src="/images/fruits/not_found_page.png"
+              src="/images/fruits/not_found_page.webp"
               alt="404 Page Not Found - Construction worker looking confused"
               fill
               className="object-contain"

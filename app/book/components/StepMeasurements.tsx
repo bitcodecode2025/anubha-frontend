@@ -2,8 +2,9 @@
 
 import React, { useState } from "react";
 import { useBookingForm } from "../context/BookingFormContext";
-import { Eye } from "lucide-react";
+import { Eye, X } from "lucide-react";
 import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface StepMeasurementsProps {
   error?: string | null;
@@ -276,46 +277,81 @@ export default function StepMeasurements({
         * Required fields. Use measuring tape — enter values in centimeters.
       </p>
 
-      {/* Measurement Guide Modal */}
-      {showGuide && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#F7F3ED] p-4 rounded-lg shadow-lg w-[90%] max-w-md relative max-h-[90vh] overflow-y-auto">
-            <button
-              className="absolute top-2 right-2 text-[#4A4842] text-lg hover:text-[#2D2A24] z-10"
-              onClick={() => setShowGuide(false)}
+      {/* Measurement Guide Modal Overlay */}
+      <AnimatePresence>
+        {showGuide && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[9999] p-4"
+            onClick={() => setShowGuide(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] relative flex flex-col"
+              onClick={(e) => e.stopPropagation()}
             >
-              ✕
-            </button>
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-200">
+                <h4 className="text-lg sm:text-xl font-semibold text-slate-900">
+                  Measurement Guide
+                </h4>
+                <button
+                  className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-600 hover:text-slate-900"
+                  onClick={() => setShowGuide(false)}
+                  aria-label="Close guide"
+                >
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              </div>
 
-            <h4 className="text-lg font-semibold mb-3 text-center text-[#2D2A24]">
-              Measurement Guide
-            </h4>
+              {/* Image Container - Responsive */}
+              <div className="flex-1 overflow-auto p-4 sm:p-6 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 min-h-0">
+                <div className="relative w-full flex items-center justify-center max-h-[calc(95vh-180px)]">
+                  <div className="relative w-full max-w-3xl">
+                    <Image
+                      src={
+                        isWeightLossPlan
+                          ? "/images/body-measurements-reference.webp"
+                          : "/guide_un.png"
+                      }
+                      alt="Body measurements reference guide"
+                      width={800}
+                      height={1000}
+                      className="w-full h-auto rounded-lg shadow-lg object-contain max-h-[calc(95vh-180px)]"
+                      priority
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 800px"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (
+                          isWeightLossPlan &&
+                          target.src.includes("body-measurements-reference")
+                        ) {
+                          target.src =
+                            "/images/body-measurements-reference.webp";
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
 
-            <div className="flex justify-center">
-              <img
-                src={
-                  isWeightLossPlan
-                    ? "/images/body-measurement.reference.jpg"
-                    : "/guide_un.png"
-                }
-                alt="Measurement guide"
-                className="rounded-lg mx-auto object-contain w-full max-w-sm sm:max-w-md md:max-w-lg"
-                style={{ maxHeight: "70vh" }}
-                onError={(e) => {
-                  // Fallback to alternative filename if the requested one doesn't exist
-                  const target = e.target as HTMLImageElement;
-                  if (
-                    isWeightLossPlan &&
-                    target.src.includes("body-measurement.reference.jpg")
-                  ) {
-                    target.src = "/images/body-measurements-reference.jpg";
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+              {/* Footer */}
+              <div className="p-4 sm:p-6 border-t border-slate-200 bg-slate-50">
+                <p className="text-xs sm:text-sm text-slate-600 text-center">
+                  Use this guide to accurately measure your body parts. All
+                  measurements should be in centimeters (cm).
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

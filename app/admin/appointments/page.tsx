@@ -6,6 +6,7 @@ import { useAuth } from "@/app/context/AuthContext";
 import {
   getAdminAppointments,
   updateAppointmentStatus,
+  deleteAppointment,
   type Appointment,
 } from "@/lib/appointments-admin";
 import {
@@ -22,8 +23,12 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  FileText,
+  Trash2,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
+import SuccessNotification from "@/components/admin/SuccessNotification";
 
 export default function AdminAppointmentsPage() {
   const router = useRouter();
@@ -34,6 +39,10 @@ export default function AdminAppointmentsPage() {
   const [total, setTotal] = useState(0);
   const [limit] = useState(20);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -96,6 +105,41 @@ export default function AdminAppointmentsPage() {
       );
     } finally {
       setUpdatingStatus(null);
+    }
+  }
+
+  function openDeleteModal(appointmentId: string) {
+    setAppointmentToDelete(appointmentId);
+    setDeleteModalOpen(true);
+  }
+
+  function closeDeleteModal() {
+    if (deletingId) return; // Prevent closing while deleting
+    setDeleteModalOpen(false);
+    setAppointmentToDelete(null);
+  }
+
+  async function handleDeleteAppointment() {
+    if (!appointmentToDelete) return;
+
+    setDeletingId(appointmentToDelete);
+    try {
+      await deleteAppointment(appointmentToDelete);
+      setDeleteModalOpen(false);
+      setShowSuccessNotification(true);
+      fetchAppointments();
+    } catch (error: any) {
+      console.error("Failed to delete appointment:", error);
+      toast.error(
+        error?.response?.data?.error || error?.response?.data?.message || "Failed to delete appointment",
+        {
+          position: "top-right",
+          duration: 3000,
+        }
+      );
+    } finally {
+      setDeletingId(null);
+      setAppointmentToDelete(null);
     }
   }
 
@@ -229,13 +273,11 @@ export default function AdminAppointmentsPage() {
 
                   {/* Card Body */}
                   <div className="p-5 flex-1 space-y-4">
-                    {/* Appointment Time */}
+                    {/* Slot Time */}
                     <div className="flex items-start gap-3">
                       <Calendar className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-slate-500 mb-1">
-                          Appointment Time
-                        </p>
+                        <p className="text-xs text-slate-500 mb-1">Slot Time</p>
                         <p className="text-sm font-medium text-slate-900">
                           {new Date(appointment.startAt).toLocaleDateString(
                             "en-IN",
@@ -253,6 +295,46 @@ export default function AdminAppointmentsPage() {
                             {
                               hour: "2-digit",
                               minute: "2-digit",
+                              hour12: true,
+                            }
+                          )}{" "}
+                          -{" "}
+                          {new Date(appointment.endAt).toLocaleTimeString(
+                            "en-IN",
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            }
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Booking Time */}
+                    <div className="flex items-start gap-3">
+                      <Clock className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-500 mb-1">
+                          Booking Time
+                        </p>
+                        <p className="text-sm font-medium text-slate-900">
+                          {new Date(appointment.createdAt).toLocaleDateString(
+                            "en-IN",
+                            {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            }
+                          )}
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          {new Date(appointment.createdAt).toLocaleTimeString(
+                            "en-IN",
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
                             }
                           )}
                         </p>
@@ -261,7 +343,7 @@ export default function AdminAppointmentsPage() {
 
                     {/* Plan Name */}
                     <div className="flex items-start gap-3">
-                      <Clock className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
+                      <FileText className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-slate-500 mb-1">Plan</p>
                         <p className="text-sm font-medium text-slate-900 truncate">
@@ -341,13 +423,21 @@ export default function AdminAppointmentsPage() {
                   </div>
 
                   {/* Card Footer */}
-                  <div className="p-5 border-t border-slate-100 bg-slate-50">
+                  <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-2">
                     <button
                       onClick={() => handleViewDetails(appointment.id)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
                     >
                       <Eye className="w-4 h-4" />
                       View Details
+                    </button>
+                    <button
+                      onClick={() => openDeleteModal(appointment.id)}
+                      disabled={deletingId === appointment.id || deleteModalOpen}
+                      className="px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      title="Delete appointment"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -387,6 +477,24 @@ export default function AdminAppointmentsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={closeDeleteModal}
+        onConfirm={handleDeleteAppointment}
+        isLoading={deletingId !== null}
+        title="Delete Appointment from Admin Dashboard"
+        message="This will remove the appointment from the admin dashboard only. The user will still be able to see their appointment. This action cannot be undone."
+      />
+
+      {/* Success Notification */}
+      <SuccessNotification
+        isOpen={showSuccessNotification}
+        onClose={() => setShowSuccessNotification(false)}
+        message="Appointment deleted successfully!"
+        duration={3000}
+      />
     </main>
   );
 }

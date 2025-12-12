@@ -224,13 +224,47 @@ export default function AppointmentDetailsPage() {
         <div className="bg-emerald-50 rounded-lg p-6 mb-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-sm text-slate-600 mb-1">Date & Time</div>
+              <div className="text-sm text-slate-600 mb-1">Slot Time</div>
               <div className="font-medium text-slate-900">
-                {new Date(appointment.startAt).toLocaleString("en-IN", {
+                {new Date(
+                  appointment.slot?.startAt || appointment.startAt
+                ).toLocaleDateString("en-IN", {
                   weekday: "long",
                   day: "numeric",
                   month: "long",
                   year: "numeric",
+                })}
+              </div>
+              <div className="text-sm text-slate-600 mt-1">
+                {new Date(
+                  appointment.slot?.startAt || appointment.startAt
+                ).toLocaleTimeString("en-IN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })}{" "}
+                -{" "}
+                {new Date(
+                  appointment.slot?.endAt || appointment.endAt
+                ).toLocaleTimeString("en-IN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-slate-600 mb-1">Booking Time</div>
+              <div className="font-medium text-slate-900">
+                {new Date(appointment.createdAt).toLocaleDateString("en-IN", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </div>
+              <div className="text-sm text-slate-600 mt-1">
+                {new Date(appointment.createdAt).toLocaleTimeString("en-IN", {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}

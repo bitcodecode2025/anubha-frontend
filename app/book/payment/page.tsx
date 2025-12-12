@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
+import DisclaimerAgreement from "@/components/payment/DisclaimerAgreement";
 import toast from "react-hot-toast";
 import { updateBookingProgress } from "@/lib/pending-appointments";
 
@@ -69,6 +70,7 @@ export default function PaymentPage() {
   const razorpayLoaded = useRef(false);
   const paymentInitiatedRef = useRef(false); // Prevent double payment initiation
   const [paymentResponse, setPaymentResponse] = useState<any>(null); // Store payment response for verification
+  const [isDisclaimerAgreed, setIsDisclaimerAgreed] = useState(false); // Disclaimer agreement state
 
   /* -------------------------------------------------
       BLOCK DIRECT ACCESS & VALIDATE BOOKING DATA
@@ -598,12 +600,24 @@ export default function PaymentPage() {
           </div>
         )}
 
+        {/* Disclaimer Agreement */}
+        <div className="mb-6">
+          <DisclaimerAgreement
+            isChecked={isDisclaimerAgreed}
+            onCheckedChange={setIsDisclaimerAgreed}
+          />
+        </div>
+
         {/* Payment Button */}
         <div className="space-y-4">
           <button
             onClick={initiatePayment}
             disabled={
-              loading || processing || !isRazorpayReady || resumingPayment
+              loading ||
+              processing ||
+              !isRazorpayReady ||
+              resumingPayment ||
+              !isDisclaimerAgreed
             }
             className="w-full py-4 bg-emerald-600 text-white rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors shadow-md hover:shadow-lg"
           >
