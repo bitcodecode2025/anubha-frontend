@@ -4,18 +4,18 @@ import TestimonialsClient, {
 
 const testimonials: Testimonial[] = [
   {
-    img: "/images/testi1.jpg",
-    name: "Client One",
+    img: "/images/testi1.webp",
+    name: "Mr. Abhilash",
     text: "Amazing experience! I feel more energetic and healthier than ever.",
   },
   {
-    img: "/images/testi2.jpg",
-    name: "Client Two",
+    img: "/images/testi2.webp",
+    name: "Ms. Yogita Selvaraj",
     text: "Lost weight safely with sustainable plans. Highly recommended!",
   },
   {
-    img: "/images/testi3.jpg",
-    name: "Client Three",
+    img: "/images/testi3.webp",
+    name: "Mr. Sagar Masih",
     text: "Great guidance and personalized diet. Visible results in weeks.",
   },
 ];

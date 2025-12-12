@@ -15,7 +15,7 @@ const GENERAL_CONSULTATION = {
   description:
     "A complete one-on-one session to assess your goals, habits, and lifestyle. Get personalized nutrition advice and a roadmap to start your wellness journey.",
   price: 1000,
-  image: "/images/services/general-consult.png",
+  image: "/images/services/general-consult.webp",
 };
 
 const TYPING_INTERVAL_MS = 25;
@@ -90,8 +90,13 @@ export default function ServicesPage() {
         ...pendingBooking,
         patientId,
       });
-      // Navigate directly to recall page since patient already exists
-      router.push("/book/recall");
+      // For weight loss plan, redirect to user-details (has different measurement form)
+      // For other plans, redirect to recall page since patient already exists
+      if (pendingBooking.planSlug === "weight-loss") {
+        router.push("/book/user-details");
+      } else {
+        router.push("/book/recall");
+      }
     }
   }
 

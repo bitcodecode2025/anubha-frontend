@@ -3687,7 +3687,7 @@ function BodyMeasurementsSection({
         <div className="flex justify-center">
           <div className="w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl">
             <img
-              src="/images/body-measurements-reference.jpg"
+              src="/images/body-measurements-reference.webp"
               alt="Body Measurements Reference Guide"
               className="w-full h-auto rounded-lg shadow-lg object-contain mx-auto"
               style={{ maxHeight: "800px" }}
@@ -3701,7 +3701,7 @@ function BodyMeasurementsSection({
                     <div class="bg-[#E8E0D6] border-2 border-[#D4C4B0] rounded-lg p-6 sm:p-8 text-center">
                       <p class="text-[#4A4842] text-sm sm:text-base">
                         Reference image will be displayed here.<br/>
-                        Please add the image at: <code class="text-[#6B9B6A] bg-[#F7F3ED] px-2 py-1 rounded">/public/images/body-measurements-reference.jpg</code>
+                        Please add the image at: <code class="text-[#6B9B6A] bg-[#F7F3ED] px-2 py-1 rounded">/public/images/body-measurements-reference.webp</code>
                       </p>
                     </div>
                   `;

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { useRef, useState, useLayoutEffect } from "react";
 import { Plan } from "@/lib/constants/plan";
@@ -62,7 +63,16 @@ export default function PlanCard({
       return;
     }
 
-    const priceRaw = Number(pkg.price.replace(/[₹, ]/g, "") || 0);
+    // Extract numeric price from string like "₹6,800 per session" or "₹3,000"
+    // Remove ₹, commas, spaces, and any text after the number
+    const priceMatch = pkg.price.match(/₹?\s*([\d,]+)/);
+    const priceRaw = priceMatch 
+      ? Number(priceMatch[1].replace(/,/g, "")) 
+      : 0;
+    
+    if (!priceRaw || priceRaw === 0) {
+      console.error(`[PlanCard] Failed to parse price from: "${pkg.price}"`);
+    }
 
     // Store booking details
     const bookingData = {
@@ -96,12 +106,26 @@ export default function PlanCard({
       // Create appointment with PENDING status (similar to recall flow)
       try {
         const { createAppointment } = await import("@/lib/appointment");
-        // TODO: For testing purposes, using ₹1 for general-consultation.
-        // This will be changed to use actual plan price from backend after successful testing.
-        const planPrice =
-          pendingBooking.planSlug === "general-consultation"
-            ? 1
-            : pendingBooking.planPriceRaw || 1;
+        // Extract price from planPriceRaw if available, otherwise parse from planPrice string
+        let planPrice: number;
+        if (pendingBooking.planPriceRaw && pendingBooking.planPriceRaw > 0) {
+          planPrice = pendingBooking.planPriceRaw;
+        } else if (pendingBooking.planPrice) {
+          // Parse price from string like "₹6,800 per session" or "₹3,000"
+          const priceMatch = pendingBooking.planPrice.match(/₹?\s*([\d,]+)/);
+          planPrice = priceMatch 
+            ? Number(priceMatch[1].replace(/,/g, "")) 
+            : 0;
+          
+          if (!planPrice || planPrice === 0) {
+            console.error(`[PlanCard] Failed to parse price from: "${pendingBooking.planPrice}"`);
+            toast.error("Invalid plan price. Please try again.");
+            return;
+          }
+        } else {
+          toast.error("Plan price is missing. Please try again.");
+          return;
+        }
 
         // planDuration is required - use "40 min" for general consultation if not provided
         const planDuration = pendingBooking.planPackageDuration || "40 min";
@@ -110,7 +134,7 @@ export default function PlanCard({
           patientId,
           planSlug: pendingBooking.planSlug,
           planName: pendingBooking.planName,
-          planPrice: planPrice, // Using ₹1 for testing (general-consultation)
+          planPrice: planPrice, // Correctly parsed from planPriceRaw or planPrice string
           planDuration: planDuration, // Always provide a duration (required field)
           planPackageName: pendingBooking.planPackageName || undefined,
           appointmentMode: "IN_PERSON", // Default, can be changed in slot page
@@ -123,8 +147,13 @@ export default function PlanCard({
           appointmentId: appointmentResponse.data.id,
         });
 
-        // Navigate directly to recall page since patient already exists
-        router.push("/book/recall");
+        // For weight loss plan, redirect to user-details (has different measurement form)
+        // For other plans, redirect to recall page since patient already exists
+        if (pendingBooking.planSlug === "weight-loss") {
+          router.push("/book/user-details");
+        } else {
+          router.push("/book/recall");
+        }
       } catch (error: any) {
         console.error("Failed to create appointment:", error);
         toast.error(
@@ -160,16 +189,18 @@ export default function PlanCard({
         {/* Image Section */}
         {image && (
           <div className="relative w-full h-48 sm:h-56 md:h-64 mb-6 rounded-2xl overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50">
-            <img
+            <Image
               src={image}
               alt={title}
+              width={512}
+              height={256}
               className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
               onError={(e) => {
                 // Fallback to a gradient background if image fails to load
                 const target = e.target as HTMLImageElement;
                 target.style.display = "none";
-                if (target.parentElement) {
-                  target.parentElement.className +=
+                if (target.parentElement?.parentElement) {
+                  target.parentElement.parentElement.className +=
                     " bg-gradient-to-br from-emerald-100 via-teal-100 to-cyan-100";
                 }
               }}

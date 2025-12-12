@@ -114,3 +114,22 @@ export async function getUserAppointmentDetails(
     throw error;
   }
 }
+
+export interface GetAppointmentsByPatientResponse {
+  success: boolean;
+  appointments: UserAppointment[];
+}
+
+export async function getAppointmentsByPatient(
+  patientId: string
+): Promise<GetAppointmentsByPatientResponse> {
+  try {
+    const res = await api.get<GetAppointmentsByPatientResponse>(
+      `appointments/patient/${patientId}`
+    );
+    return res.data;
+  } catch (error: any) {
+    console.error("Failed to fetch patient appointments:", error);
+    throw error;
+  }
+}

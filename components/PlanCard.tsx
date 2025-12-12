@@ -96,12 +96,26 @@ export default function PlanCard({
       // Create appointment with PENDING status (similar to recall flow)
       try {
         const { createAppointment } = await import("@/lib/appointment");
-        // TODO: For testing purposes, using ₹1 for general-consultation.
-        // This will be changed to use actual plan price from backend after successful testing.
-        const planPrice =
-          pendingBooking.planSlug === "general-consultation"
-            ? 1
-            : pendingBooking.planPriceRaw || 1;
+        // Extract price from planPriceRaw if available, otherwise parse from planPrice string
+        let planPrice: number;
+        if (pendingBooking.planPriceRaw && pendingBooking.planPriceRaw > 0) {
+          planPrice = pendingBooking.planPriceRaw;
+        } else if (pendingBooking.planPrice) {
+          // Parse price from string like "₹6,800 per session" or "₹3,000" or "₹1,000"
+          const priceMatch = pendingBooking.planPrice.match(/₹?\s*([\d,]+)/);
+          planPrice = priceMatch 
+            ? Number(priceMatch[1].replace(/,/g, "")) 
+            : 0;
+          
+          if (!planPrice || planPrice === 0) {
+            console.error(`[PlanCard] Failed to parse price from: "${pendingBooking.planPrice}"`);
+            toast.error("Invalid plan price. Please try again.");
+            return;
+          }
+        } else {
+          toast.error("Plan price is missing. Please try again.");
+          return;
+        }
 
         // planDuration is required - use "40 min" for general consultation if not provided
         const planDuration = pendingBooking.planPackageDuration || "40 min";
@@ -110,7 +124,7 @@ export default function PlanCard({
           patientId,
           planSlug: pendingBooking.planSlug,
           planName: pendingBooking.planName,
-          planPrice: planPrice, // Using ₹1 for testing (general-consultation)
+          planPrice: planPrice, // Correctly parsed from planPriceRaw or planPrice string
           planDuration: planDuration, // Always provide a duration (required field)
           planPackageName: pendingBooking.planPackageName || undefined,
           appointmentMode: "IN_PERSON", // Default, can be changed in slot page
@@ -123,8 +137,13 @@ export default function PlanCard({
           appointmentId: appointmentResponse.data.id,
         });
 
-        // Navigate directly to slot selection since patient already exists
-        router.push("/book/slot");
+        // For weight loss plan, redirect to user-details (has different measurement form)
+        // For other plans, redirect to recall page since patient already exists
+        if (pendingBooking.planSlug === "weight-loss") {
+          router.push("/book/user-details");
+        } else {
+          router.push("/book/recall");
+        }
       } catch (error: any) {
         console.error("Failed to create appointment:", error);
         toast.error(

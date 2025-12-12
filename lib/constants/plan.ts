@@ -20,7 +20,7 @@ export const plans: Plan[] = [
   {
     title: "Weight Loss Plan",
     slug: "weight-loss",
-    image: "/images/services/weight-loss.png",
+    image: "/images/services/weight-loss.webp",
     description: `
 Weight loss with a balanced diet — no fad diets, only healthy and region-based meal plans tailored to your lifestyle to help you achieve the results you desire.
 
@@ -69,7 +69,7 @@ At Dt. Anubha’s Clinic, weight loss plans are crafted to fit your personal lif
   {
     title: "Kid's Nutrition Plan",
     slug: "kids-nutrition",
-    image: "/images/services/kids-nutrition.png",
+    image: "/images/services/kids-nutrition.webp",
     description: `
 A kids' nutrition plan provides specialized care for children's nutritional needs. It includes creating personalized meal plans, managing weight or health-related issues, dealing with fussy eaters or hyperactivity, educating families, and offering sports nutrition guidance.
 
@@ -83,7 +83,7 @@ This plan includes:
     `,
     packages: [
       {
-        name: "Kid’s Nutrition Plan",
+        name: "Kids Nutrition Personalized Plan",
         details:
           "Personalized diet plan and food guide for children aged 3–18 years.",
         price: "₹5,500",
@@ -93,7 +93,7 @@ This plan includes:
   {
     title: "Baby's First Solid Food Plan",
     slug: "baby-solid-food",
-    image: "/images/services/baby-solid.png",
+    image: "/images/services/baby-solid.webp",
     note: "Two options are available — choose any one method to introduce your baby's first food, based on your and your baby's convenience. Both methods are completely ideal and best.",
     description: `
   This plan helps parents introduce solid foods to their babies safely and confidently. 
@@ -126,7 +126,7 @@ This plan includes:
   {
     title: "Medical Management Plan",
     slug: "medical-management",
-    image: "/images/services/medical-management.png",
+    image: "/images/services/medical-management.webp",
     description: `
   Be it PCOS/PCOD, Thyroid, Insulin resistance, Diabetes, Hypertension, CKD, Liver Disease, Dialysis, Arthritis, Anaemia, Food Allergies/Intolerance, Old Age Nutrition, Child and Kids Nutrition, Autism, Pregnancy, Lactation — we’re here to guide you toward a healthier lifestyle.
   
@@ -151,7 +151,7 @@ This plan includes:
   {
     title: "Groom or Bride-to-be Plan",
     slug: "groom-bride-plan",
-    image: "/images/services/groom-bride.png",
+    image: "/images/services/groom-bride.webp",
     description: `
   Congratulations! You’re a groom or bride-to-be — and we know you want to look exactly how you’ve imagined yourself on your big day. This plan helps you achieve that vision naturally and radiantly.
   
@@ -178,7 +178,7 @@ This plan includes:
   {
     title: "Corporate Health & Wellness Plan",
     slug: "corporate-plan",
-    image: "/images/services/corporate-plan.png",
+    image: "/images/services/corporate-plan.webp",
     description: `
   With extremely hectic schedules and demanding jobs, focusing on fitness and health often takes a backseat. Since most people spend a major portion of their day at work, it’s only ideal to have a well-designed health and wellness plan for both employees and employers.
   

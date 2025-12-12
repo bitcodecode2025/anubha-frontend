@@ -90,6 +90,28 @@ export async function updateBookingProgress(
   return res.data;
 }
 
+export interface DeleteAppointmentResponse {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Delete a pending appointment
+ */
+export async function deletePendingAppointment(
+  appointmentId: string
+): Promise<DeleteAppointmentResponse> {
+  try {
+    const res = await api.delete<DeleteAppointmentResponse>(
+      `appointments/${appointmentId}`
+    );
+    return res.data;
+  } catch (error: any) {
+    console.error("Failed to delete appointment:", error);
+    throw error;
+  }
+}
+
 /**
  * Get the next step URL based on booking progress
  * Note: bookingProgress indicates the LAST completed step, so next step is one after that

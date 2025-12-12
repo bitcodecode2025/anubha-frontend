@@ -1,7 +1,7 @@
 {
-  "name": "NutriWell - Nutrition Doctor",
-  "short_name": "NutriWell",
-  "description": "Personalized nutrition and wellness care",
+  "name": "Anubha Nutrition – Personalized Diet & Wellness Plans",
+  "short_name": "Anubha Nutrition",
+  "description": "Book consultations, get customized diet plans, and manage your nutrition journey with Anubha Nutrition.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -9,15 +9,15 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/images/nutrilogo.png",
+      "src": "/images/anubha_logo.webp",
       "sizes": "192x192",
-      "type": "image/png",
+      "type": "image/webp",
       "purpose": "any maskable"
     },
     {
-      "src": "/images/nutrilogo.png",
+      "src": "/images/anubha_logo.webp",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/webp",
       "purpose": "any maskable"
     }
   ],

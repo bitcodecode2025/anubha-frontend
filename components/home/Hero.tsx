@@ -2,13 +2,48 @@ import Link from "next/link";
 import HeroClient from "./HeroClient";
 
 const fruits = [
-  { src: "/images/fruits/broccoli.png", size: "w-14 sm:w-16 md:w-24 lg:w-24" },
-  { src: "/images/fruits/apple.png", size: "w-12 sm:w-14 md:w-18 lg:w-23" },
-  { src: "/images/fruits/carrot.png", size: "w-20 sm:w-20 md:w-26 lg:w-38" },
-  { src: "/images/fruits/cucumber.png", size: "w-14 sm:w-16 md:w-20 lg:w-22" },
-  { src: "/images/fruits/bellpeper.png", size: "w-20 sm:w-25 md:w-30 lg:w-31" },
-  { src: "/images/fruits/tomato.png", size: "w-11 sm:w-13 md:w-17 lg:w-19" },
-  { src: "/images/fruits/eggplant.png", size: "w-14 sm:w-16 md:w-20 lg:w-32" },
+  {
+    src: "/images/fruits/broccoli.webp",
+    size: "w-14 sm:w-16 md:w-24 lg:w-24",
+    width: 96,
+    height: 96,
+  },
+  {
+    src: "/images/fruits/apple.webp",
+    size: "w-12 sm:w-14 md:w-18 lg:w-23",
+    width: 92,
+    height: 92,
+  },
+  {
+    src: "/images/fruits/carrot.webp",
+    size: "w-20 sm:w-20 md:w-26 lg:w-38",
+    width: 152,
+    height: 152,
+  },
+  {
+    src: "/images/fruits/cucumber.webp",
+    size: "w-14 sm:w-16 md:w-20 lg:w-22",
+    width: 88,
+    height: 88,
+  },
+  {
+    src: "/images/fruits/bellpeper.webp",
+    size: "w-20 sm:w-25 md:w-30 lg:w-31",
+    width: 124,
+    height: 124,
+  },
+  {
+    src: "/images/fruits/tomato.webp",
+    size: "w-11 sm:w-13 md:w-17 lg:w-19",
+    width: 76,
+    height: 76,
+  },
+  {
+    src: "/images/fruits/eggplant.webp",
+    size: "w-14 sm:w-16 md:w-20 lg:w-32",
+    width: 128,
+    height: 128,
+  },
 ];
 
 export default function Hero() {

@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 type Fruit = {
   src: string;
   size: string;
+  width?: number;
+  height?: number;
 };
 
 type Props = {
@@ -89,7 +91,9 @@ export default function HeroClient({ fruits }: Props) {
 
               <motion.img
                 src={fruit.src}
-                alt="fruit"
+                alt={`Fresh ${
+                  fruit.src.split("/").pop()?.split(".")[0] || "fruit"
+                } - Anubha Nutrition`}
                 className={`${fruit.size} select-none pointer-events-none -mt-2 sm:-mt-3`}
                 animate={{
                   y: [0, 8, -5, 4, -2, 0],

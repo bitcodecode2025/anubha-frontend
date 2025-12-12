@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { Menu, X, User, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -65,10 +66,13 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-3 md:py-4">
           {/* LOGO */}
           <Link href="/" className="flex items-center gap-2">
-            <img
-              src="/images/eatrightlogo.jpg"
-              alt="logo"
-              className="w-12 h-12 md:w-14 md:h-14 rounded-md bg-white"
+            <Image
+              src="/images/eatrightlogo.webp"
+              alt="Anubha Nutrition Clinic Logo"
+              width={56}
+              height={56}
+              className="w-12 h-12 md:w-14 md:h-14 rounded-md bg-white object-cover"
+              priority
             />
             <span className="font-semibold text-md md:text-lg text-emerald-800">
               Dt. Anubha's Nutrition
@@ -125,9 +129,11 @@ export default function Navbar() {
                 }`}
               >
                 {user?.role === "ADMIN" ? (
-                  <img
-                    src="/images/anubha_profile_hd.jpg"
+                  <Image
+                    src="/images/anubha_profile_hd.webp"
                     alt="Admin Profile"
+                    width={40}
+                    height={40}
                     className="w-10 h-10 rounded-full object-cover"
                   />
                 ) : (

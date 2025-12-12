@@ -15,6 +15,42 @@ export async function getMyPatients(): Promise<Patient[]> {
   return res.data.patients;
 }
 
+export interface PatientDetails {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  gender: string;
+  dateOfBirth: string;
+  age: number;
+  address: string;
+  weight: number;
+  height: number;
+  medicalHistory?: string;
+  appointmentConcerns?: string;
+  createdAt: string;
+  [key: string]: any;
+}
+
+export interface GetPatientDetailsResponse {
+  success: boolean;
+  patient: PatientDetails;
+}
+
+export async function getPatientDetails(
+  patientId: string
+): Promise<GetPatientDetailsResponse> {
+  try {
+    const res = await api.get<GetPatientDetailsResponse>(
+      `patients/me/${patientId}`
+    );
+    return res.data;
+  } catch (error: any) {
+    console.error("Failed to fetch patient details:", error);
+    throw error;
+  }
+}
+
 export interface CreatePatientResponse {
   success: boolean;
   message: string;
