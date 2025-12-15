@@ -8,6 +8,8 @@ export interface Appointment {
   status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
   mode: "IN_PERSON" | "ONLINE";
   planName: string;
+  planSlug: string;
+  planPackageName?: string;
   paymentStatus: string;
   patient: {
     id: string;
@@ -182,7 +184,7 @@ export interface DeleteAppointmentRequest {
  * Delete appointment from admin view (admin-only soft delete)
  * By default, this only removes the appointment from admin dashboard.
  * User will still be able to see their appointment.
- * 
+ *
  * To archive globally (remove from both admin and user views), set scope: "global"
  */
 export async function deleteAppointment(

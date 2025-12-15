@@ -22,9 +22,17 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Download,
+  Receipt,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import BabySolidPlanOptions from "@/components/appointments/BabySolidPlanOptions";
+import {
+  getInvoiceByAppointmentId,
+  downloadInvoice,
+  type Invoice,
+} from "@/lib/invoice";
 
 // Skeleton Loader Component
 function SkeletonLoader() {
@@ -89,10 +97,14 @@ export default function UserAppointmentDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const { user, loading: authLoading } = useAuth();
-  const [appointment, setAppointment] =
-    useState<UserAppointmentDetails | null>(null);
+  const [appointment, setAppointment] = useState<UserAppointmentDetails | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 
   const appointmentId = params.id as string;
 
@@ -115,6 +127,11 @@ export default function UserAppointmentDetailsPage() {
     try {
       const response = await getUserAppointmentDetails(appointmentId);
       setAppointment(response.appointment);
+
+      // Fetch invoice if appointment is confirmed
+      if (response.appointment.status === "CONFIRMED") {
+        fetchInvoice();
+      }
     } catch (error: any) {
       console.error("Failed to fetch appointment details:", error);
       toast.error(
@@ -123,6 +140,36 @@ export default function UserAppointmentDetailsPage() {
       router.push("/profile");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchInvoice() {
+    setLoadingInvoice(true);
+    try {
+      const response = await getInvoiceByAppointmentId(appointmentId);
+      if (response.success && response.invoice) {
+        setInvoice(response.invoice);
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch invoice:", error);
+      // Don't show error toast - invoice may not exist yet
+    } finally {
+      setLoadingInvoice(false);
+    }
+  }
+
+  async function handleDownloadInvoice() {
+    if (!invoice) return;
+
+    setDownloadingInvoice(true);
+    try {
+      await downloadInvoice(invoice.invoiceNumber);
+      toast.success("Invoice downloaded successfully");
+    } catch (error: any) {
+      console.error("Failed to download invoice:", error);
+      toast.error(error.message || "Failed to download invoice");
+    } finally {
+      setDownloadingInvoice(false);
     }
   }
 
@@ -193,11 +240,17 @@ export default function UserAppointmentDetailsPage() {
                 })}
               </div>
             </div>
-            <div>
+            <div className="col-span-2">
               <div className="text-sm text-slate-600 mb-1">Plan</div>
               <div className="font-medium text-slate-900">
                 {appointment.planName}
               </div>
+              {appointment.planSlug === "baby-solid-food" && (
+                <BabySolidPlanOptions
+                  selectedPackageName={appointment.planPackageName}
+                  variant="detailed"
+                />
+              )}
             </div>
             <div>
               <div className="text-sm text-slate-600 mb-1">Mode</div>
@@ -372,6 +425,70 @@ export default function UserAppointmentDetailsPage() {
           )}
         </section>
 
+        {/* Invoice Section - Only show if appointment is confirmed */}
+        {appointment.status === "CONFIRMED" && (
+          <section className="mb-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <Receipt className="w-5 h-5" />
+              Invoice
+            </h3>
+            <div className="bg-slate-50 rounded-lg p-6 border border-slate-200">
+              {loadingInvoice ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                  <span className="ml-2 text-slate-600">
+                    Loading invoice...
+                  </span>
+                </div>
+              ) : invoice ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-slate-600 mb-1">
+                      Invoice Number
+                    </div>
+                    <div className="font-medium text-slate-900">
+                      {invoice.invoiceNumber}
+                    </div>
+                    <div className="text-sm text-slate-500 mt-1">
+                      Generated on{" "}
+                      {new Date(invoice.invoiceDate).toLocaleDateString(
+                        "en-IN",
+                        {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        }
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleDownloadInvoice}
+                    disabled={downloadingInvoice}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {downloadingInvoice ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        Download Invoice
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  Invoice is being generated. Please refresh the page in a
+                  moment.
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* Uploaded Reports */}
         <section className="mb-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
@@ -459,4 +576,3 @@ export default function UserAppointmentDetailsPage() {
     </main>
   );
 }
-

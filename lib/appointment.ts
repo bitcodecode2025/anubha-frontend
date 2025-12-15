@@ -107,9 +107,24 @@ export async function updateAppointmentSlot(
   appointmentId: string,
   data: UpdateAppointmentSlotRequest
 ): Promise<UpdateAppointmentSlotResponse> {
-  const res = await api.patch<UpdateAppointmentSlotResponse>(
-    `appointments/${appointmentId}/slot`,
-    data
-  );
-  return res.data;
+  try {
+    if (!appointmentId) {
+      throw new Error("Appointment ID is required");
+    }
+    if (!data.slotId) {
+      throw new Error("Slot ID is required");
+    }
+    const res = await api.patch<UpdateAppointmentSlotResponse>(
+      `appointments/${appointmentId}/slot`,
+      data
+    );
+    return res.data;
+  } catch (error: any) {
+    console.error("[API] Update appointment slot error:", {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+    });
+    throw error;
+  }
 }

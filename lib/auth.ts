@@ -16,11 +16,20 @@ interface VerifyOtpResponse {
 }
 
 export async function sendRegisterOtp(data: { name: string; phone: string }) {
-  // Validate input before making request
-  if (!data || !data.name || !data.phone) {
-    throw new Error("Name and phone are required");
+  try {
+    // Validate input before making request
+    if (!data || !data.name || !data.phone) {
+      throw new Error("Name and phone are required");
+    }
+    const response = await api.post("auth/register/send-otp", data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[API] Send register OTP error:",
+      error?.response?.data || error?.message
+    );
+    throw error;
   }
-  return (await api.post("auth/register/send-otp", data)).data;
 }
 
 export async function verifyRegisterOtp(data: {
@@ -28,37 +37,75 @@ export async function verifyRegisterOtp(data: {
   phone: string;
   otp: string;
 }) {
-  // Validate input before making request
-  if (!data || !data.name || !data.phone || !data.otp) {
-    throw new Error("Name, phone, and OTP are required");
+  try {
+    // Validate input before making request
+    if (!data || !data.name || !data.phone || !data.otp) {
+      throw new Error("Name, phone, and OTP are required");
+    }
+    const response = await api.post("auth/register/verify-otp", data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[API] Verify register OTP error:",
+      error?.response?.data || error?.message
+    );
+    throw error;
   }
-  return (await api.post("auth/register/verify-otp", data)).data;
 }
 
 export async function sendLoginOtp(data: { phone: string }) {
-  // Validate input before making request
-  if (!data || !data.phone) {
-    throw new Error("Phone number is required");
+  try {
+    // Validate input before making request
+    if (!data || !data.phone) {
+      throw new Error("Phone number is required");
+    }
+    const response = await api.post("auth/login/send-otp", data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[API] Send login OTP error:",
+      error?.response?.data || error?.message
+    );
+    throw error;
   }
-  return (await api.post("auth/login/send-otp", data)).data;
 }
 
 export async function verifyLoginOtp(data: { phone: string; otp: string }) {
-  // Validate input before making request
-  if (!data || !data.phone || !data.otp) {
-    throw new Error("Phone and OTP are required");
-  }
-  const response = (
-    await api.post<VerifyOtpResponse>("auth/login/verify-otp", data)
-  ).data;
-  console.log("OTP verify response:", response);
+  try {
+    // Validate input before making request
+    if (!data || !data.phone || !data.otp) {
+      throw new Error("Phone and OTP are required");
+    }
+    const response = (
+      await api.post<VerifyOtpResponse>("auth/login/verify-otp", data)
+    ).data;
 
-  if (!response.user && response.owner) {
-    response.user = response.owner;
+    if (process.env.NODE_ENV === "development") {
+      console.log("OTP verify response:", response);
+    }
+
+    if (!response.user && response.owner) {
+      response.user = response.owner;
+    }
+    return response;
+  } catch (error: any) {
+    console.error(
+      "[API] Verify login OTP error:",
+      error?.response?.data || error?.message
+    );
+    throw error;
   }
-  return response;
 }
 
 export async function getMe() {
-  return (await api.get("auth/me")).data;
+  try {
+    const response = await api.get("auth/me");
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[API] Get me error:",
+      error?.response?.data || error?.message
+    );
+    throw error;
+  }
 }

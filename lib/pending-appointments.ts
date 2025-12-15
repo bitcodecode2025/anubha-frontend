@@ -50,19 +50,22 @@ export interface UpdateBookingProgressResponse {
 
 /**
  * Get all pending appointments for the current user
+ * @param patientId - Optional patientId to filter pending appointments for a specific patient
  */
-export async function getPendingAppointments(): Promise<GetPendingAppointmentsResponse> {
+export async function getPendingAppointments(
+  patientId?: string
+): Promise<GetPendingAppointmentsResponse> {
   try {
-    console.log(
-      "[API] Fetching pending appointments from: appointments/pending"
-    );
-    const res = await api.get<GetPendingAppointmentsResponse>(
-      "appointments/pending"
-    );
+    const url = patientId
+      ? `appointments/pending?patientId=${patientId}`
+      : "appointments/pending";
+    console.log(`[API] Fetching pending appointments from: ${url}`);
+    const res = await api.get<GetPendingAppointmentsResponse>(url);
     console.log("[API] Pending appointments response:", {
       success: res.data.success,
       count: res.data.appointments?.length || 0,
       appointments: res.data.appointments,
+      patientId: patientId || "all",
     });
     return res.data;
   } catch (error: any) {
@@ -83,11 +86,26 @@ export async function updateBookingProgress(
   appointmentId: string,
   bookingProgress: BookingProgress
 ): Promise<UpdateBookingProgressResponse> {
-  const res = await api.patch<UpdateBookingProgressResponse>(
-    `appointments/${appointmentId}/progress`,
-    { bookingProgress }
-  );
-  return res.data;
+  try {
+    if (!appointmentId) {
+      throw new Error("Appointment ID is required");
+    }
+    if (!bookingProgress) {
+      throw new Error("Booking progress is required");
+    }
+    const res = await api.patch<UpdateBookingProgressResponse>(
+      `appointments/${appointmentId}/progress`,
+      { bookingProgress }
+    );
+    return res.data;
+  } catch (error: any) {
+    console.error("[API] Update booking progress error:", {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+    });
+    throw error;
+  }
 }
 
 export interface DeleteAppointmentResponse {

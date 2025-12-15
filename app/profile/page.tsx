@@ -48,6 +48,7 @@ import { useBookingForm } from "@/app/book/context/BookingFormContext";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 import SuccessNotification from "@/components/admin/SuccessNotification";
 import { ChevronDown } from "lucide-react";
+import BabySolidPlanOptions from "@/components/appointments/BabySolidPlanOptions";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -61,15 +62,22 @@ export default function ProfilePage() {
   const [loadingPending, setLoadingPending] = useState(true);
   const [resuming, setResuming] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(
+    null
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
 
   // Profile switching state
-  const [selectedProfileType, setSelectedProfileType] = useState<"self" | "patient">("self");
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedProfileType, setSelectedProfileType] = useState<
+    "self" | "patient"
+  >("self");
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(
+    null
+  );
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [selectedPatientDetails, setSelectedPatientDetails] = useState<PatientDetails | null>(null);
+  const [selectedPatientDetails, setSelectedPatientDetails] =
+    useState<PatientDetails | null>(null);
   const [loadingPatients, setLoadingPatients] = useState(false);
   const [loadingPatientDetails, setLoadingPatientDetails] = useState(false);
 
@@ -92,10 +100,10 @@ export default function ProfilePage() {
     }
   }, []);
 
-  const fetchPendingAppointments = useCallback(async () => {
+  const fetchPendingAppointments = useCallback(async (patientId?: string) => {
     setLoadingPending(true);
     try {
-      const response = await getPendingAppointments();
+      const response = await getPendingAppointments(patientId);
       if (response.success && Array.isArray(response.appointments)) {
         setPendingAppointments(response.appointments);
       } else {
@@ -136,29 +144,36 @@ export default function ProfilePage() {
     }
   }, []);
 
-  const fetchPatientAppointments = useCallback(async (patientId: string) => {
-    setLoadingAppointments(true);
-    try {
-      const response = await getAppointmentsByPatient(patientId);
-      setAppointments(response.appointments);
-      // Clear pending appointments for patient view (pending are user-level)
-      setPendingAppointments([]);
-    } catch (error: any) {
-      console.error("Failed to fetch patient appointments:", error);
-      toast.error("Failed to load appointments");
-      setAppointments([]);
-    } finally {
-      setLoadingAppointments(false);
-    }
-  }, []);
+  const fetchPatientAppointments = useCallback(
+    async (patientId: string) => {
+      setLoadingAppointments(true);
+      try {
+        const response = await getAppointmentsByPatient(patientId);
+        setAppointments(response.appointments);
+        // Also fetch pending appointments for this patient
+        await fetchPendingAppointments(patientId);
+      } catch (error: any) {
+        console.error("Failed to fetch patient appointments:", error);
+        toast.error("Failed to load appointments");
+        setAppointments([]);
+        setPendingAppointments([]);
+      } finally {
+        setLoadingAppointments(false);
+      }
+    },
+    [fetchPendingAppointments]
+  );
 
-  const handleProfileChange = useCallback((profileType: "self" | "patient", patientId?: string | null) => {
-    setSelectedProfileType(profileType);
-    setSelectedPatientId(patientId || null);
-    if (profileType === "self") {
-      setSelectedPatientDetails(null);
-    }
-  }, []);
+  const handleProfileChange = useCallback(
+    (profileType: "self" | "patient", patientId?: string | null) => {
+      setSelectedProfileType(profileType);
+      setSelectedPatientId(patientId || null);
+      if (profileType === "self") {
+        setSelectedPatientDetails(null);
+      }
+    },
+    []
+  );
 
   // Initial load effect - runs when user is available
   useEffect(() => {
@@ -176,13 +191,21 @@ export default function ProfilePage() {
       fetchPatientAppointments(selectedPatientId);
     } else if (selectedProfileType === "self" && user) {
       fetchAppointments();
-      fetchPendingAppointments();
+      fetchPendingAppointments(); // No patientId = fetch all pending for user
     } else if (selectedProfileType === "patient") {
       // Clear appointments when switching to patient but no patient selected yet
       setAppointments([]);
       setPendingAppointments([]);
     }
-  }, [selectedProfileType, selectedPatientId, user, fetchPatientDetails, fetchPatientAppointments, fetchAppointments, fetchPendingAppointments]);
+  }, [
+    selectedProfileType,
+    selectedPatientId,
+    user,
+    fetchPatientDetails,
+    fetchPatientAppointments,
+    fetchAppointments,
+    fetchPendingAppointments,
+  ]);
 
   const handleResumeBooking = async (appointment: PendingAppointment) => {
     try {
@@ -255,11 +278,18 @@ export default function ProfilePage() {
       await deletePendingAppointment(appointmentToDelete);
       setDeleteModalOpen(false);
       setShowSuccessNotification(true);
-      fetchPendingAppointments(); // Refresh the list
+      // Refresh the list based on current profile context
+      if (selectedProfileType === "patient" && selectedPatientId) {
+        fetchPendingAppointments(selectedPatientId);
+      } else {
+        fetchPendingAppointments();
+      }
     } catch (error: any) {
       console.error("Failed to delete appointment:", error);
       toast.error(
-        error?.response?.data?.error || error?.response?.data?.message || "Failed to delete appointment",
+        error?.response?.data?.error ||
+          error?.response?.data?.message ||
+          "Failed to delete appointment",
         {
           position: "top-right",
           duration: 3000,
@@ -432,7 +462,8 @@ export default function ProfilePage() {
                     <div className="flex-1">
                       <p className="text-xs text-slate-500 font-medium">Name</p>
                       <p className="text-slate-800 font-semibold">
-                        {selectedProfileType === "patient" && selectedPatientDetails
+                        {selectedProfileType === "patient" &&
+                        selectedPatientDetails
                           ? selectedPatientDetails.name
                           : user.name}
                       </p>
@@ -458,7 +489,8 @@ export default function ProfilePage() {
                       <p className="text-slate-800 font-semibold">
                         +91{" "}
                         {formatPhone(
-                          selectedProfileType === "patient" && selectedPatientDetails
+                          selectedProfileType === "patient" &&
+                            selectedPatientDetails
                             ? selectedPatientDetails.phone
                             : user.phone
                         )}
@@ -468,105 +500,106 @@ export default function ProfilePage() {
                 </motion.div>
 
                 {/* Additional Patient Information */}
-                {selectedProfileType === "patient" && selectedPatientDetails && (
-                  <>
-                    {/* Email */}
-                    {selectedPatientDetails.email && (
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.5 }}
-                        className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-emerald-100">
-                            <Shield className="w-5 h-5 text-emerald-700" />
+                {selectedProfileType === "patient" &&
+                  selectedPatientDetails && (
+                    <>
+                      {/* Email */}
+                      {selectedPatientDetails.email && (
+                        <motion.div
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.5 }}
+                          className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-emerald-100">
+                              <Shield className="w-5 h-5 text-emerald-700" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs text-slate-500 font-medium">
+                                Email
+                              </p>
+                              <p className="text-slate-800 font-semibold">
+                                {selectedPatientDetails.email}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-xs text-slate-500 font-medium">
-                              Email
-                            </p>
-                            <p className="text-slate-800 font-semibold">
-                              {selectedPatientDetails.email}
-                            </p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
+                        </motion.div>
+                      )}
 
-                    {/* Gender */}
-                    {selectedPatientDetails.gender && (
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6 }}
-                        className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-emerald-100">
-                            <User className="w-5 h-5 text-emerald-700" />
+                      {/* Gender */}
+                      {selectedPatientDetails.gender && (
+                        <motion.div
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.6 }}
+                          className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-emerald-100">
+                              <User className="w-5 h-5 text-emerald-700" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs text-slate-500 font-medium">
+                                Gender
+                              </p>
+                              <p className="text-slate-800 font-semibold capitalize">
+                                {selectedPatientDetails.gender.toLowerCase()}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-xs text-slate-500 font-medium">
-                              Gender
-                            </p>
-                            <p className="text-slate-800 font-semibold capitalize">
-                              {selectedPatientDetails.gender.toLowerCase()}
-                            </p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
+                        </motion.div>
+                      )}
 
-                    {/* Age */}
-                    {selectedPatientDetails.age && (
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.7 }}
-                        className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-emerald-100">
-                            <Calendar className="w-5 h-5 text-emerald-700" />
+                      {/* Age */}
+                      {selectedPatientDetails.age && (
+                        <motion.div
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.7 }}
+                          className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-emerald-100">
+                              <Calendar className="w-5 h-5 text-emerald-700" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs text-slate-500 font-medium">
+                                Age
+                              </p>
+                              <p className="text-slate-800 font-semibold">
+                                {selectedPatientDetails.age} years
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-xs text-slate-500 font-medium">
-                              Age
-                            </p>
-                            <p className="text-slate-800 font-semibold">
-                              {selectedPatientDetails.age} years
-                            </p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
+                        </motion.div>
+                      )}
 
-                    {/* Address */}
-                    {selectedPatientDetails.address && (
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.8 }}
-                        className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-emerald-100">
-                            <MapPin className="w-5 h-5 text-emerald-700" />
+                      {/* Address */}
+                      {selectedPatientDetails.address && (
+                        <motion.div
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.8 }}
+                          className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-emerald-100">
+                              <MapPin className="w-5 h-5 text-emerald-700" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs text-slate-500 font-medium">
+                                Address
+                              </p>
+                              <p className="text-slate-800 font-semibold">
+                                {selectedPatientDetails.address}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-xs text-slate-500 font-medium">
-                              Address
-                            </p>
-                            <p className="text-slate-800 font-semibold">
-                              {selectedPatientDetails.address}
-                            </p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </>
-                )}
+                        </motion.div>
+                      )}
+                    </>
+                  )}
               </div>
             )}
 
@@ -745,6 +778,14 @@ export default function ProfilePage() {
                               <p className="text-sm font-medium text-slate-900 truncate">
                                 {appointment.planName}
                               </p>
+                              {appointment.planSlug === "baby-solid-food" && (
+                                <BabySolidPlanOptions
+                                  selectedPackageName={
+                                    appointment.planPackageName
+                                  }
+                                  variant="compact"
+                                />
+                              )}
                             </div>
                           </div>
 
@@ -804,20 +845,33 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Pending Appointments Section - Only for non-admin users and when viewing self */}
-          {user.role !== "ADMIN" && selectedProfileType === "self" && (
+          {/* Pending Appointments Section - Only for non-admin users, shown for both self and patient profiles */}
+          {user.role !== "ADMIN" && (
             <div className="mt-8">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-2xl font-bold text-emerald-800">
-                    Pending Appointments
+                    {selectedProfileType === "patient" && selectedPatientDetails
+                      ? `${selectedPatientDetails.name}'s Pending Appointments`
+                      : "Pending Appointments"}
                   </h2>
                   <p className="text-slate-600 mt-1 text-sm">
-                    Continue where you left off with your booking
+                    {selectedProfileType === "patient"
+                      ? "Continue booking for this patient"
+                      : "Continue where you left off with your booking"}
                   </p>
                 </div>
                 <button
-                  onClick={fetchPendingAppointments}
+                  onClick={() => {
+                    if (
+                      selectedProfileType === "patient" &&
+                      selectedPatientId
+                    ) {
+                      fetchPendingAppointments(selectedPatientId);
+                    } else {
+                      fetchPendingAppointments();
+                    }
+                  }}
                   disabled={loadingPending}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50"
                 >
@@ -846,7 +900,9 @@ export default function ProfilePage() {
                     No pending appointments
                   </p>
                   <p className="text-slate-400 text-sm mt-2">
-                    You don't have any incomplete bookings
+                    {selectedProfileType === "patient"
+                      ? "This patient doesn't have any incomplete bookings"
+                      : "You don't have any incomplete bookings"}
                   </p>
                 </div>
               ) : (
@@ -973,7 +1029,9 @@ export default function ProfilePage() {
                           <div className="flex-shrink-0 flex gap-2">
                             <button
                               onClick={() => openDeleteModal(appointment.id)}
-                              disabled={deletingId === appointment.id || deleteModalOpen}
+                              disabled={
+                                deletingId === appointment.id || deleteModalOpen
+                              }
                               className="px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                               title="Delete appointment"
                             >

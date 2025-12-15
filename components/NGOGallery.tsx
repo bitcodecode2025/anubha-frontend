@@ -8,11 +8,11 @@ const TOTAL_IMAGES = 16;
 const images = Array.from({ length: TOTAL_IMAGES }, (_, i) => {
   const index = i + 1;
   // Handle the typo files (ngp-14, ngp-15)
-  const filename = index === 14 || index === 15 ? `ngp-${index}` : `ngo-${index}`;
+  const filename =
+    index === 14 || index === 15 ? `ngp-${index}` : `ngo-${index}`;
   return `/ngo/${filename}.webp`;
 });
 
 export default function NGOGallery() {
   return <NGOLightboxClient images={images} />;
 }
-

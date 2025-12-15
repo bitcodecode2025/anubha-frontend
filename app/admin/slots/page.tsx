@@ -20,6 +20,7 @@ import {
   getDayOffs,
   getExistingSlots,
   previewSlots,
+  getSlotDateRange,
   DayOff,
   AdminSlot,
 } from "@/lib/slots-admin";
@@ -59,6 +60,12 @@ export default function EditSlotsPage() {
   } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [dayOffError, setDayOffError] = useState<string | null>(null);
+  const [slotDateRange, setSlotDateRange] = useState<{
+    hasSlots: boolean;
+    earliestDate: string | null;
+    latestDate: string | null;
+  } | null>(null);
+  const [loadingDateRange, setLoadingDateRange] = useState(false);
 
   // Auth check
   useEffect(() => {
@@ -68,12 +75,32 @@ export default function EditSlotsPage() {
     }
   }, [user, authLoading, router]);
 
-  // Load day offs on mount
+  // Load day offs and slot date range on mount
   useEffect(() => {
     if (user?.role === "ADMIN") {
       loadDayOffs();
+      loadSlotDateRange();
     }
   }, [user]);
+
+  // Reload slot date range after creating slots
+  const loadSlotDateRange = async () => {
+    try {
+      setLoadingDateRange(true);
+      const data = await getSlotDateRange();
+      setSlotDateRange(data);
+    } catch (error: any) {
+      console.error("Failed to load slot date range:", error);
+      // Don't show toast for this, just log it
+      setSlotDateRange({
+        hasSlots: false,
+        earliestDate: null,
+        latestDate: null,
+      });
+    } finally {
+      setLoadingDateRange(false);
+    }
+  };
 
   // Load preview when date range or modes change
   useEffect(() => {
@@ -208,6 +235,9 @@ export default function EditSlotsPage() {
       // Reset form
       setStartDate("");
       setEndDate("");
+
+      // Reload slot date range to reflect new slots
+      await loadSlotDateRange();
     } catch (error: any) {
       console.error("Failed to create slots:", error);
       const errorMsg =
@@ -279,9 +309,7 @@ export default function EditSlotsPage() {
       await loadDayOffs();
     } catch (error: any) {
       console.error("Failed to add day off:", error);
-      const reason =
-        error?.response?.data?.message ||
-        error?.message;
+      const reason = error?.response?.data?.message || error?.message;
       const errorMsg = reason
         ? `Failed to mark this day off: ${reason}`
         : "Failed to mark this day off.";
@@ -617,6 +645,60 @@ export default function EditSlotsPage() {
                 )}
               </button>
             </form>
+
+            {/* Slot Date Range Info */}
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                <CalendarDays className="w-5 h-5 text-emerald-600" />
+                Created Slots Range
+              </h3>
+              {loadingDateRange ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                </div>
+              ) : slotDateRange?.hasSlots ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-emerald-800 font-medium">
+                        Starting Date:
+                      </span>
+                      <span className="text-emerald-900 font-semibold">
+                        {slotDateRange.earliestDate
+                          ? formatDate(slotDateRange.earliestDate)
+                          : "N/A"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-emerald-800 font-medium">
+                        Ending Date:
+                      </span>
+                      <span className="text-emerald-900 font-semibold">
+                        {slotDateRange.latestDate
+                          ? formatDate(slotDateRange.latestDate)
+                          : "N/A"}
+                      </span>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-emerald-300">
+                      <p className="text-emerald-700 text-xs">
+                        Slots have been created from the starting date up to the
+                        ending date.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                  <CalendarX className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                  <p className="text-slate-600 font-medium">
+                    No slots created yet
+                  </p>
+                  <p className="text-slate-500 text-sm mt-1">
+                    Use the form above to create slots for a date range
+                  </p>
+                </div>
+              )}
+            </div>
           </motion.div>
 
           {/* Day Off Management Card */}

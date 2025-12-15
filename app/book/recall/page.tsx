@@ -353,12 +353,12 @@ export default function RecallPage() {
       } else if (form.planPrice) {
         // Parse price from string like "₹6,800 per session" or "₹3,000"
         const priceMatch = form.planPrice.match(/₹?\s*([\d,]+)/);
-        planPrice = priceMatch 
-          ? Number(priceMatch[1].replace(/,/g, "")) 
-          : 0;
-        
+        planPrice = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : 0;
+
         if (!planPrice || planPrice === 0) {
-          console.error(`[RECALL] Failed to parse price from: "${form.planPrice}"`);
+          console.error(
+            `[RECALL] Failed to parse price from: "${form.planPrice}"`
+          );
           throw new Error(`Invalid plan price. Please select a plan again.`);
         }
       } else {

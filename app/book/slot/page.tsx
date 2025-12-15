@@ -44,12 +44,14 @@ export default function SlotPage() {
             } else if (form.planPrice) {
               // Parse price from string like "₹6,800 per session" or "₹3,000"
               const priceMatch = form.planPrice.match(/₹?\s*([\d,]+)/);
-              planPrice = priceMatch 
-                ? Number(priceMatch[1].replace(/,/g, "")) 
+              planPrice = priceMatch
+                ? Number(priceMatch[1].replace(/,/g, ""))
                 : 0;
-              
+
               if (!planPrice || planPrice === 0) {
-                console.error(`[SLOT] Failed to parse price from: "${form.planPrice}"`);
+                console.error(
+                  `[SLOT] Failed to parse price from: "${form.planPrice}"`
+                );
                 toast.error("Invalid plan price. Please select a plan again.");
                 router.push("/services");
                 return;

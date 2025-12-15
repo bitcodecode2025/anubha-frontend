@@ -3,7 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 
 interface NGOLightboxClientProps {
   images: string[];
@@ -94,7 +100,7 @@ export default function NGOLightboxClient({ images }: NGOLightboxClientProps) {
             <div className="relative aspect-auto">
               <Image
                 src={src}
-                    alt={`NGO work image #${index + 1} by Dt. Anubha`}
+                alt={`NGO work image #${index + 1} by Dt. Anubha`}
                 width={600}
                 height={800}
                 className="w-full h-auto object-cover rounded-xl"
@@ -103,7 +109,7 @@ export default function NGOLightboxClient({ images }: NGOLightboxClientProps) {
                 blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
                 sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
               />
-              
+
               {/* Overlay on hover */}
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 rounded-xl flex items-center justify-center">
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -166,7 +172,9 @@ export default function NGOLightboxClient({ images }: NGOLightboxClientProps) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setFitMode((prev) => (prev === "contain" ? "full" : "contain"));
+                    setFitMode((prev) =>
+                      prev === "contain" ? "full" : "contain"
+                    );
                   }}
                   className="absolute top-4 left-4 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md transition-colors text-white"
                   aria-label="Toggle fit mode"
@@ -239,4 +247,3 @@ export default function NGOLightboxClient({ images }: NGOLightboxClientProps) {
     </div>
   );
 }
-

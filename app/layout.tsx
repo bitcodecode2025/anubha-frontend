@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     "healthy eating",
   ],
   metadataBase: new URL("https://anubhanutrition.in"),
-  manifest: "/manifest.json",
+  manifest: "/site.webmanifest",
   openGraph: {
     title: "Anubha Nutrition – Personalized Diet & Wellness Plans",
     description:
@@ -60,7 +60,13 @@ export const metadata: Metadata = {
     images: ["/images/anubha_logo.webp"],
   },
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
   },
   alternates: {
     canonical: "https://anubhanutrition.in",
