@@ -21,6 +21,7 @@ import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { getDoctorNotes } from "@/lib/doctor-notes-api";
 import DoctorNotesPreview from "@/components/doctor-notes/DoctorNotesPreview";
+import BabySolidPlanOptions from "@/components/appointments/BabySolidPlanOptions";
 
 // Skeleton Loader Component
 function SkeletonLoader() {
@@ -270,11 +271,17 @@ export default function AppointmentDetailsPage() {
                 })}
               </div>
             </div>
-            <div>
+            <div className="col-span-2">
               <div className="text-sm text-slate-600 mb-1">Plan</div>
               <div className="font-medium text-slate-900">
                 {appointment.planName}
               </div>
+              {appointment.planSlug === "baby-solid-food" && (
+                <BabySolidPlanOptions
+                  selectedPackageName={appointment.planPackageName}
+                  variant="detailed"
+                />
+              )}
             </div>
             <div>
               <div className="text-sm text-slate-600 mb-1">Mode</div>

@@ -29,6 +29,7 @@ import {
 import toast from "react-hot-toast";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 import SuccessNotification from "@/components/admin/SuccessNotification";
+import BabySolidPlanOptions from "@/components/appointments/BabySolidPlanOptions";
 
 export default function AdminAppointmentsPage() {
   const router = useRouter();
@@ -41,7 +42,9 @@ export default function AdminAppointmentsPage() {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(
+    null
+  );
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
 
   // Filter states
@@ -131,7 +134,9 @@ export default function AdminAppointmentsPage() {
     } catch (error: any) {
       console.error("Failed to delete appointment:", error);
       toast.error(
-        error?.response?.data?.error || error?.response?.data?.message || "Failed to delete appointment",
+        error?.response?.data?.error ||
+          error?.response?.data?.message ||
+          "Failed to delete appointment",
         {
           position: "top-right",
           duration: 3000,
@@ -349,6 +354,12 @@ export default function AdminAppointmentsPage() {
                         <p className="text-sm font-medium text-slate-900 truncate">
                           {appointment.planName}
                         </p>
+                        {appointment.planSlug === "baby-solid-food" && (
+                          <BabySolidPlanOptions
+                            selectedPackageName={appointment.planPackageName}
+                            variant="compact"
+                          />
+                        )}
                       </div>
                     </div>
 
@@ -433,7 +444,9 @@ export default function AdminAppointmentsPage() {
                     </button>
                     <button
                       onClick={() => openDeleteModal(appointment.id)}
-                      disabled={deletingId === appointment.id || deleteModalOpen}
+                      disabled={
+                        deletingId === appointment.id || deleteModalOpen
+                      }
                       className="px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                       title="Delete appointment"
                     >

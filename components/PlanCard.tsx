@@ -103,12 +103,12 @@ export default function PlanCard({
         } else if (pendingBooking.planPrice) {
           // Parse price from string like "₹6,800 per session" or "₹3,000" or "₹1,000"
           const priceMatch = pendingBooking.planPrice.match(/₹?\s*([\d,]+)/);
-          planPrice = priceMatch 
-            ? Number(priceMatch[1].replace(/,/g, "")) 
-            : 0;
-          
+          planPrice = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : 0;
+
           if (!planPrice || planPrice === 0) {
-            console.error(`[PlanCard] Failed to parse price from: "${pendingBooking.planPrice}"`);
+            console.error(
+              `[PlanCard] Failed to parse price from: "${pendingBooking.planPrice}"`
+            );
             toast.error("Invalid plan price. Please try again.");
             return;
           }

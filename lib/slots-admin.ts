@@ -150,3 +150,33 @@ export async function previewSlots(
   });
   return res.data.data;
 }
+
+export interface SlotDateRangeResponse {
+  success: boolean;
+  data: {
+    hasSlots: boolean;
+    earliestDate: string | null;
+    latestDate: string | null;
+  };
+}
+
+// Get slot date range (earliest and latest slot dates)
+export async function getSlotDateRange(): Promise<
+  SlotDateRangeResponse["data"]
+> {
+  try {
+    const res = await api.get<SlotDateRangeResponse>("slots/admin/date-range");
+    return res.data.data;
+  } catch (error: any) {
+    console.error(
+      "[API] Get slot date range error:",
+      error?.response?.data || error?.message
+    );
+    // Return default if error
+    return {
+      hasSlots: false,
+      earliestDate: null,
+      latestDate: null,
+    };
+  }
+}

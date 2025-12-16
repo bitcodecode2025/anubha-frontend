@@ -9,10 +9,18 @@ export interface Patient {
 }
 
 export async function getMyPatients(): Promise<Patient[]> {
-  const res = await api.get<{ success: boolean; patients: Patient[] }>(
-    "patients/me"
-  );
-  return res.data.patients;
+  try {
+    const res = await api.get<{ success: boolean; patients: Patient[] }>(
+      "patients/me"
+    );
+    return res.data.patients || [];
+  } catch (error: any) {
+    console.error(
+      "[API] Get my patients error:",
+      error?.response?.data || error?.message
+    );
+    throw error;
+  }
 }
 
 export interface PatientDetails {
