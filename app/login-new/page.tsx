@@ -8,7 +8,7 @@ import { signIn } from "next-auth/react";
 import { Eye, EyeOff, Mail, Lock, Phone } from "lucide-react";
 import toast from "react-hot-toast";
 
-export default function Login() {
+export default function LoginNew() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -234,7 +234,7 @@ export default function Login() {
           <p className="text-center text-slate-600 mt-6 text-sm">
             Don't have an account?{" "}
             <Link
-              href="/register"
+              href="/signup-new"
               className="text-emerald-700 font-semibold hover:underline"
             >
               Sign Up

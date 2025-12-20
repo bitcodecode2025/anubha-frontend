@@ -5,6 +5,7 @@ export interface Invoice {
   invoiceNumber: string;
   invoiceDate: string;
   appointmentId: string;
+  pdfUrl?: string; // Cloudinary URL for direct access
   createdAt: string;
 }
 
@@ -42,24 +43,55 @@ export async function getInvoiceByAppointmentId(
 }
 
 /**
- * Download invoice PDF by invoice number
+ * Get invoice download URL by invoice number
+ * Returns Cloudinary URL for direct download/preview
  */
-export async function downloadInvoice(invoiceNumber: string): Promise<void> {
+export async function getInvoiceDownloadUrl(
+  invoiceNumber: string
+): Promise<string> {
   try {
-    const res = await api.get<Blob>(`invoice/${invoiceNumber}`, {
-      responseType: "blob", // Important for downloading PDF
-    });
+    const res = await api.get<{ success: boolean; url: string }>(
+      `invoice/${invoiceNumber}`
+    );
 
-    // Create blob URL and trigger download
-    const blob = new Blob([res.data as Blob], { type: "application/pdf" });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${invoiceNumber}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    if (res.data.success && res.data.url) {
+      return res.data.url;
+    }
+
+    throw new Error("Invoice URL not found");
+  } catch (error: any) {
+    console.error("[INVOICE] Error fetching invoice URL:", error);
+    throw new Error(
+      error?.response?.data?.error || "Failed to fetch invoice URL"
+    );
+  }
+}
+
+/**
+ * Download invoice PDF by invoice number
+ * Opens invoice in new tab or triggers download
+ */
+export async function downloadInvoice(
+  invoiceNumber: string,
+  openInNewTab = false
+): Promise<void> {
+  try {
+    // Get Cloudinary URL from backend
+    const url = await getInvoiceDownloadUrl(invoiceNumber);
+
+    if (openInNewTab) {
+      // Open PDF in new tab for preview
+      window.open(url, "_blank");
+    } else {
+      // Trigger download
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${invoiceNumber}.pdf`;
+      link.target = "_blank"; // Open in new tab as fallback
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   } catch (error: any) {
     console.error("[INVOICE] Error downloading invoice:", error);
     throw new Error(

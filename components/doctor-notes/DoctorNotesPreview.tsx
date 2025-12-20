@@ -1,7 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import { Stethoscope, Calendar, Edit2, Trash2, Loader2 } from "lucide-react";
+import {
+  Stethoscope,
+  Calendar,
+  Edit2,
+  Trash2,
+  Loader2,
+  FileText,
+  ExternalLink,
+} from "lucide-react";
 import {
   DoctorNotesFormData,
   deleteDoctorNoteAttachment,
@@ -2335,6 +2343,68 @@ export default function DoctorNotesPreview({
                 label="Joining Date"
                 value={formData.dietPrescribed.joiningDate}
               />
+              <FieldDisplay
+                label="Expiry Date"
+                value={formData.dietPrescribed.expiryDate}
+              />
+              <FieldDisplay
+                label="Diet Prescription Date"
+                value={formData.dietPrescribed.dietPrescriptionDate}
+              />
+              <FieldDisplay
+                label="Duration of Diet"
+                value={formData.dietPrescribed.durationOfDiet}
+              />
+              <FieldDisplay
+                label="Diet Chart"
+                value={formData.dietPrescribed.dietChart}
+              />
+              <FieldDisplay label="Code" value={formData.dietPrescribed.code} />
+
+              {/* Uploaded PDFs */}
+              {attachments && attachments.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="font-semibold text-slate-700 mb-3 text-sm">
+                    Uploaded Diet Charts ({attachments.length})
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {attachments.map((pdf, index) => (
+                      <div
+                        key={pdf.id || index}
+                        className="rounded-lg border border-emerald-200 bg-emerald-50 p-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
+                            <FileText className="w-5 h-5 text-emerald-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className="text-sm font-medium text-slate-800 truncate mb-1"
+                              title={pdf.fileName}
+                            >
+                              {pdf.fileName}
+                            </p>
+                            <p className="text-xs text-slate-500 mb-2">
+                              {(pdf.sizeInBytes / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                            {pdf.fileUrl && (
+                              <a
+                                href={pdf.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                Preview PDF
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <FieldDisplay
                 label="Expiry Date"
                 value={formData.dietPrescribed.expiryDate}

@@ -152,9 +152,112 @@ export default function AdminAppointmentsPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-      </div>
+      <main className="min-h-screen bg-gradient-to-b from-white to-emerald-50/40 px-6 py-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Header Skeleton */}
+          <div className="mb-8">
+            <div className="h-6 w-32 bg-slate-200 rounded animate-pulse mb-4" />
+            <div className="h-9 w-64 bg-slate-200 rounded animate-pulse mb-2" />
+            <div className="h-5 w-80 bg-slate-200 rounded animate-pulse" />
+          </div>
+
+          {/* Filters Skeleton */}
+          <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex gap-4">
+            <div className="flex-1">
+              <div className="h-4 w-16 bg-slate-200 rounded animate-pulse mb-2" />
+              <div className="h-10 w-full bg-slate-200 rounded animate-pulse" />
+            </div>
+            <div className="flex-1">
+              <div className="h-4 w-16 bg-slate-200 rounded animate-pulse mb-2" />
+              <div className="h-10 w-full bg-slate-200 rounded animate-pulse" />
+            </div>
+          </div>
+
+          {/* Appointment Cards Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div
+                key={i}
+                className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col"
+              >
+                {/* Card Header Skeleton */}
+                <div className="p-5 border-b border-slate-100">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-10 h-10 rounded-full bg-slate-200 animate-pulse flex-shrink-0" />
+                      <div className="flex-1">
+                        <div className="h-5 w-32 bg-slate-200 rounded animate-pulse mb-2" />
+                        <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="h-6 w-20 bg-slate-200 rounded-full animate-pulse" />
+                  </div>
+                </div>
+
+                {/* Card Body Skeleton */}
+                <div className="p-5 flex-1 space-y-4">
+                  {/* Slot Time */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-5 h-5 bg-slate-200 rounded animate-pulse flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="h-3 w-16 bg-slate-200 rounded animate-pulse mb-2" />
+                      <div className="h-4 w-full bg-slate-200 rounded animate-pulse mb-1" />
+                      <div className="h-4 w-3/4 bg-slate-200 rounded animate-pulse" />
+                    </div>
+                  </div>
+
+                  {/* Booking Time */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-5 h-5 bg-slate-200 rounded animate-pulse flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="h-3 w-24 bg-slate-200 rounded animate-pulse mb-2" />
+                      <div className="h-4 w-full bg-slate-200 rounded animate-pulse mb-1" />
+                      <div className="h-4 w-20 bg-slate-200 rounded animate-pulse" />
+                    </div>
+                  </div>
+
+                  {/* Plan */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-5 h-5 bg-slate-200 rounded animate-pulse flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="h-3 w-10 bg-slate-200 rounded animate-pulse mb-2" />
+                      <div className="h-4 w-40 bg-slate-200 rounded animate-pulse" />
+                    </div>
+                  </div>
+
+                  {/* Mode and Payment */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-slate-200 rounded animate-pulse" />
+                      <div className="h-6 w-20 bg-slate-200 rounded animate-pulse" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-slate-200 rounded animate-pulse" />
+                      <div className="h-6 w-20 bg-slate-200 rounded animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Footer Skeleton */}
+                <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-2">
+                  <div className="flex-1 h-10 bg-slate-200 rounded-lg animate-pulse" />
+                  <div className="w-10 h-10 bg-slate-200 rounded-lg animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Pagination Skeleton */}
+          <div className="bg-white rounded-lg shadow-sm p-4 flex items-center justify-between border border-slate-200">
+            <div className="h-4 w-48 bg-slate-200 rounded animate-pulse" />
+            <div className="flex items-center gap-2">
+              <div className="h-9 w-24 bg-slate-200 rounded-lg animate-pulse" />
+              <div className="h-4 w-20 bg-slate-200 rounded animate-pulse" />
+              <div className="h-9 w-24 bg-slate-200 rounded-lg animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </main>
     );
   }
 

@@ -3,7 +3,7 @@ import { MessageCircle } from "lucide-react";
 
 export default function OnlineProgram() {
   return (
-    <section className="relative w-full py-24 px-6 md:px-10 bg-gradient-to-br from-emerald-100/50 via-teal-50/40 to-cyan-100/50 text-slate-800">
+    <section className="relative w-full py-24 px-6 md:px-10 bg-linear-to-b from-emerald-50/50 via-teal-50/40 to-[#E8F5E9] text-slate-800">
       <div className="max-w-5xl mx-auto text-center">
         <h2 className="text-4xl md:text-5xl font-bold mb-6 text-slate-900">
           Online Programme

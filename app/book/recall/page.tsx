@@ -3,7 +3,14 @@
 import React, { useEffect, useState } from "react";
 import { useBookingForm } from "../context/BookingFormContext";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Loader2, UploadCloud, X } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Loader2,
+  UploadCloud,
+  X,
+  AlertCircle,
+} from "lucide-react";
 import { createPatient } from "@/lib/patient";
 import {
   uploadFiles,
@@ -46,6 +53,7 @@ export default function RecallPage() {
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showValidationModal, setShowValidationModal] = useState(false);
 
   /* -------------------------------------------------
       BLOCK DIRECT ACCESS - Ensure plan details and patient exist
@@ -258,8 +266,7 @@ export default function RecallPage() {
 
     if (validEntries.length === 0) {
       console.log("[RECALL SUBMISSION] No valid recall entries");
-      setError("Please add at least one complete recall entry");
-      toast.error("Please add at least one complete recall entry");
+      setShowValidationModal(true);
       return;
     }
 
@@ -465,6 +472,45 @@ export default function RecallPage() {
   ----------------------------------*/
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#f9fcfa] to-[#f1f7f3] py-10 px-4 sm:px-6 flex justify-center">
+      {/* Validation Modal */}
+      {showValidationModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity"
+          onClick={() => setShowValidationModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center text-center">
+              {/* Icon */}
+              <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                <AlertCircle className="w-8 h-8 text-amber-600" />
+              </div>
+
+              {/* Title */}
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">
+                Incomplete Recall Entry
+              </h3>
+
+              {/* Message */}
+              <p className="text-slate-600 mb-6">
+                Please add at least one complete recall entry with all required
+                fields filled (meal type, time, food item, and quantity).
+              </p>
+
+              {/* Button */}
+              <button
+                onClick={() => setShowValidationModal(false)}
+                className="w-full px-6 py-3 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+              >
+                Got it, I'll fill the form
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-3xl w-full bg-white rounded-2xl shadow-lg p-6 sm:p-8">
         {/* PLAN BANNER */}
         {form.planName && (

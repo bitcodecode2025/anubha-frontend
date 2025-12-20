@@ -36,7 +36,7 @@ export default function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="w-full py-20 px-6 md:px-10 bg-gradient-to-b from-[#F7F3ED] via-[#FAF6F0] to-[#F0EBE0]"
+      className="w-full py-20 px-6 md:px-10 bg-linear-to-b from-[#F7F3ED] via-[#E8F5E9] to-emerald-50/50"
     >
       <div className="max-w-6xl mx-auto">
         <h2 className="text-4xl md:text-5xl font-bold text-center text-slate-900 mb-14">

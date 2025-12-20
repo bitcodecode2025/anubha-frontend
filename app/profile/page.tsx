@@ -583,15 +583,15 @@ export default function ProfilePage() {
                           transition={{ delay: 0.8 }}
                           className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-emerald-100">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
                               <MapPin className="w-5 h-5 text-emerald-700" />
                             </div>
-                            <div className="flex-1">
-                              <p className="text-xs text-slate-500 font-medium">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-slate-500 font-medium mb-1">
                                 Address
                               </p>
-                              <p className="text-slate-800 font-semibold">
+                              <p className="text-slate-800 font-semibold break-words overflow-wrap-anywhere">
                                 {selectedPatientDetails.address}
                               </p>
                             </div>

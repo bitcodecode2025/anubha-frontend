@@ -14,7 +14,7 @@ export default function BloodTestBooking() {
 
   return (
     <section
-      className="w-full py-12 sm:py-16 md:py-20 px-6 sm:px-8 lg:px-16 bg-gradient-to-br from-[#E8F5E9] via-[#F1F8E9] to-[#FAF6F0]"
+      className="w-full py-12 sm:py-16 md:py-20 px-6 sm:px-8 lg:px-16 bg-linear-to-b from-[#E8F5E9] via-[#F1F8E9] to-white"
       aria-label="Book Lab Test with Anubha's Nutrition Clinic"
     >
       <div className="max-w-6xl mx-auto">

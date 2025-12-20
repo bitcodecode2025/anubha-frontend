@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Save, ChevronDown, ChevronUp, Upload, FileText, ExternalLink, X as XIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   DoctorNotesFormData,
@@ -10,6 +10,7 @@ import {
   getDoctorNotes,
   updateDoctorNotes,
 } from "@/lib/doctor-notes-api";
+import { uploadPDFFiles, type UploadedPDF } from "@/lib/pdf-upload";
 import AppointmentPreview from "./AppointmentPreview";
 import { AppointmentDetails } from "@/lib/appointments-admin";
 import { useDoctorNotes } from "@/app/context/DoctorNotesContext";
@@ -3190,10 +3191,14 @@ function DietPrescribedSection({
 }: any) {
   const dietPrescribed = getFormValue(["dietPrescribed"]) || {};
   const [dietChartFiles, setDietChartFiles] = React.useState<File[]>([]);
+  const [uploadedPDFs, setUploadedPDFs] = React.useState<any[]>(
+    dietPrescribed.uploadedPDFs || []
+  );
   const [fileErrors, setFileErrors] = React.useState<{
     [fileName: string]: string;
   }>({});
   const [dragActive, setDragActive] = React.useState(false);
+  const [isUploading, setIsUploading] = React.useState(false);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 
@@ -3205,9 +3210,27 @@ function DietPrescribedSection({
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
   };
 
-  const validateAndAddFiles = (files: File[]) => {
+  const validateAndAddFiles = async (files: File[]) => {
     const errors: { [fileName: string]: string } = {};
     const validFiles: File[] = [];
+
+    // Check total files limit (local + uploaded)
+    const totalFiles = dietChartFiles.length + uploadedPDFs.length + files.length;
+    if (totalFiles > 15) {
+      toast.error(`Cannot add ${files.length} file(s). Maximum 15 files allowed in total.`, {
+        duration: 5000,
+        style: {
+          background: "#fee2e2",
+          color: "#991b1b",
+          border: "1px solid #fca5a5",
+          padding: "12px 16px",
+          borderRadius: "8px",
+          fontSize: "14px",
+          maxWidth: "500px",
+        },
+      });
+      return;
+    }
 
     files.forEach((file) => {
       // Check if PDF
@@ -3222,9 +3245,15 @@ function DietPrescribedSection({
         return;
       }
 
-      // Check if file already exists
+      // Check if file already exists in local files
       if (dietChartFiles.some((f) => f.name === file.name && f.size === file.size)) {
         errors[file.name] = "This file is already added";
+        return;
+      }
+
+      // Check if file already exists in uploaded files
+      if (uploadedPDFs.some((pdf) => pdf.fileName === file.name && pdf.sizeInBytes === file.size)) {
+        errors[file.name] = "This file is already uploaded";
         return;
       }
 
@@ -3251,26 +3280,36 @@ function DietPrescribedSection({
       });
     }
 
-    // Add valid files (max 10 total)
+    // Add valid files and upload them
     if (validFiles.length > 0) {
-      const updatedFiles = [...dietChartFiles, ...validFiles].slice(0, 10);
+      const updatedFiles = [...dietChartFiles, ...validFiles].slice(0, 15);
       setDietChartFiles(updatedFiles);
       updateFormData(["dietPrescribed", "dietChartFiles"], updatedFiles);
       
-      if (validFiles.length > 0) {
-        toast.success(`Successfully added ${validFiles.length} file(s)`, {
-          duration: 3000,
-        });
-      }
+      // Auto-upload files to Cloudinary
+      await uploadFilesToCloudinary(validFiles);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      validateAndAddFiles(files);
-      e.target.value = ""; // Clear input after processing
+    if (files.length === 0) {
+      toast.error("No files selected. Please select at least one PDF file.", {
+        duration: 3000,
+        style: {
+          background: "#fee2e2",
+          color: "#991b1b",
+          border: "1px solid #fca5a5",
+          padding: "12px 16px",
+          borderRadius: "8px",
+          fontSize: "14px",
+          maxWidth: "500px",
+        },
+      });
+      return;
     }
+    validateAndAddFiles(files);
+    e.target.value = ""; // Clear input after processing
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -3296,6 +3335,107 @@ function DietPrescribedSection({
     }
     
     toast.success("File removed", { duration: 2000 });
+  };
+
+  const uploadFilesToCloudinary = async (files: File[]) => {
+    if (files.length === 0) {
+      toast.error("No files to upload.", {
+        duration: 3000,
+        style: {
+          background: "#fee2e2",
+          color: "#991b1b",
+          border: "1px solid #fca5a5",
+          padding: "12px 16px",
+          borderRadius: "8px",
+          fontSize: "14px",
+          maxWidth: "500px",
+        },
+      });
+      return;
+    }
+    
+    setIsUploading(true);
+    try {
+      const response = await uploadPDFFiles(files);
+      
+      if (response.success && response.files) {
+        // Add uploaded files to uploadedPDFs state
+        const newUploadedPDFs = [...uploadedPDFs, ...response.files];
+        setUploadedPDFs(newUploadedPDFs);
+        updateFormData(["dietPrescribed", "uploadedPDFs"], newUploadedPDFs);
+        
+        // Remove uploaded files from local dietChartFiles
+        const uploadedFileNames = files.map(f => f.name);
+        const remainingFiles = dietChartFiles.filter(
+          f => !uploadedFileNames.includes(f.name)
+        );
+        setDietChartFiles(remainingFiles);
+        updateFormData(["dietPrescribed", "dietChartFiles"], remainingFiles);
+        
+        toast.success(`Successfully uploaded ${files.length} PDF file(s)`, {
+          duration: 3000,
+        });
+      } else {
+        // Handle unexpected response structure
+        toast.error("Upload failed. Server returned an unexpected response.", {
+          duration: 5000,
+          style: {
+            background: "#fee2e2",
+            color: "#991b1b",
+            border: "1px solid #fca5a5",
+            padding: "12px 16px",
+            borderRadius: "8px",
+            fontSize: "14px",
+            maxWidth: "500px",
+          },
+        });
+      }
+    } catch (error: any) {
+      console.error("PDF upload error:", error);
+      
+      // Handle different types of errors
+      let errorMessage = "Failed to upload PDF files. Please try again.";
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.code === "ECONNABORTED") {
+        errorMessage = "Upload timeout. Please try again with smaller files.";
+      } else if (error.code === "ERR_NETWORK") {
+        errorMessage = "Network error. Please check your connection and try again.";
+      }
+      
+      toast.error(errorMessage, {
+        duration: 5000,
+        style: {
+          background: "#fee2e2",
+          color: "#991b1b",
+          border: "1px solid #fca5a5",
+          padding: "12px 16px",
+          borderRadius: "8px",
+          fontSize: "14px",
+          maxWidth: "500px",
+        },
+      });
+      
+      // Remove failed files from local state
+      const failedFileNames = files.map(f => f.name);
+      const remainingFiles = dietChartFiles.filter(
+        f => !failedFileNames.includes(f.name)
+      );
+      setDietChartFiles(remainingFiles);
+      updateFormData(["dietPrescribed", "dietChartFiles"], remainingFiles);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeUploadedPDF = (index: number) => {
+    const updatedPDFs = uploadedPDFs.filter((_, i) => i !== index);
+    setUploadedPDFs(updatedPDFs);
+    updateFormData(["dietPrescribed", "uploadedPDFs"], updatedPDFs);
+    toast.success("Uploaded PDF removed", { duration: 2000 });
   };
 
   return (
@@ -3350,14 +3490,15 @@ function DietPrescribedSection({
             Upload Diet Charts (PDF)
           </label>
           <p className="text-xs text-slate-500 mb-3">
-            Max 10 files · 10MB per file
+            Max 15 files · 10MB per file
           </p>
 
           {/* Drag & Drop Area */}
           <div
             onDragOver={(e) => {
               e.preventDefault();
-              if (dietChartFiles.length < 10) {
+              const totalFiles = dietChartFiles.length + uploadedPDFs.length;
+              if (totalFiles < 15 && !isUploading) {
                 setDragActive(true);
               }
             }}
@@ -3370,7 +3511,7 @@ function DietPrescribedSection({
                   ? "border-emerald-600 bg-emerald-50"
                   : "border-gray-300 bg-white hover:border-emerald-400"
               }
-              ${dietChartFiles.length >= 10 ? "opacity-50 pointer-events-none" : ""}
+              ${(dietChartFiles.length + uploadedPDFs.length) >= 15 || isUploading ? "opacity-50 pointer-events-none" : ""}
             `}
           >
             <label
@@ -3378,28 +3519,27 @@ function DietPrescribedSection({
               className="flex flex-col items-center gap-2 cursor-pointer"
             >
               <span className="p-3 bg-emerald-50 rounded-full text-emerald-700">
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
+                {isUploading ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <Upload className="w-6 h-6" />
+                )}
               </span>
-              <div className="text-sm text-slate-600">
-                {dietChartFiles.length >= 10
-                  ? "Maximum 10 files reached"
+              <div className="text-sm text-slate-600 font-medium">
+                {isUploading
+                  ? "Uploading..."
+                  : (dietChartFiles.length + uploadedPDFs.length) >= 15
+                  ? "Maximum 15 files reached"
                   : "Tap to upload or drag PDF files here"}
               </div>
               <div className="text-xs text-slate-400">
-                PDF only · Max 10MB per file
+                PDF only · Max 10MB per file · Uploads to Cloudinary
               </div>
+              {(dietChartFiles.length + uploadedPDFs.length > 0) && (
+                <div className="text-xs text-slate-500 font-medium mt-1">
+                  {dietChartFiles.length + uploadedPDFs.length} / 15 files
+                </div>
+              )}
 
               <input
                 id="pdf-upload"
@@ -3408,100 +3548,157 @@ function DietPrescribedSection({
                 multiple
                 className="hidden"
                 onChange={handleFileChange}
-                disabled={dietChartFiles.length >= 10}
+                disabled={(dietChartFiles.length + uploadedPDFs.length) >= 15 || isUploading}
               />
             </label>
           </div>
 
-          {/* Uploaded Files Preview Grid */}
+          {/* Local Files Preview (Being Uploaded) */}
           {dietChartFiles.length > 0 && (
             <div className="mt-4">
               <p className="text-sm font-medium text-slate-700 mb-3">
-                Selected Files ({dietChartFiles.length}/10):
+                {isUploading ? "Uploading Files..." : `Selected Files (${dietChartFiles.length})`}
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {dietChartFiles.map((file, index) => {
-                  const hasError = fileErrors[file.name];
-                  return (
-                    <div
-                      key={index}
-                      className={`relative group rounded-lg overflow-hidden border p-3 transition-all ${
-                        hasError
-                          ? "bg-red-50 border-red-300"
-                          : "bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
-                      }`}
-                    >
-                      {/* PDF Icon Preview */}
-                      <div className="flex flex-col items-center justify-center mb-2">
-                        <div
-                          className={`p-3 rounded-lg ${
-                            hasError ? "bg-red-100" : "bg-emerald-100"
-                          }`}
-                        >
-                          <svg
-                            className={`w-8 h-8 ${
-                              hasError ? "text-red-600" : "text-emerald-600"
-                            }`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                            />
-                          </svg>
-                        </div>
-                      </div>
-
-                      {/* File Info */}
-                      <div className="text-center">
-                        <p
-                          className={`text-xs font-medium truncate mb-1 ${
-                            hasError ? "text-red-800" : "text-slate-800"
-                          }`}
-                          title={file.name}
-                        >
-                          {file.name.length > 20
-                            ? file.name.substring(0, 20) + "..."
-                            : file.name}
-                        </p>
-                        <p className="text-xs text-slate-500 mb-1">
-                          {formatFileSize(file.size)}
-                        </p>
-                        {hasError && (
-                          <p className="text-xs text-red-600 font-medium truncate">
-                            {fileErrors[file.name]}
-                          </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {dietChartFiles.map((file, index) => (
+                  <div
+                    key={index}
+                    className="relative group rounded-lg overflow-hidden border border-blue-200 bg-blue-50 p-4 transition-all"
+                  >
+                    {/* PDF Icon */}
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-blue-100 flex-shrink-0">
+                        {isUploading ? (
+                          <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                        ) : (
+                          <FileText className="w-6 h-6 text-blue-600" />
                         )}
                       </div>
 
+                      {/* File Info */}
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="text-sm font-medium text-slate-800 truncate mb-1"
+                          title={file.name}
+                        >
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-slate-500 mb-2">
+                          {formatFileSize(file.size)}
+                        </p>
+                        <p className="text-xs text-blue-600 font-medium">
+                          {isUploading ? "Uploading..." : "Ready to upload"}
+                        </p>
+                      </div>
+
                       {/* Delete Button */}
-                      <button
-                        type="button"
-                        onClick={() => removeFile(index)}
-                        className="absolute top-1 right-1 bg-black/50 hover:bg-black text-white p-1 rounded-full transition opacity-0 group-hover:opacity-100"
-                        title="Remove file"
-                      >
+                      {!isUploading && (
+                        <button
+                          type="button"
+                          onClick={() => removeFile(index)}
+                          className="flex-shrink-0 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full transition"
+                          title="Remove file"
+                        >
+                          <XIcon className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Uploaded Files Preview Grid */}
+          {uploadedPDFs.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-slate-700 mb-3">
+                Uploaded PDFs ({uploadedPDFs.length}/15)
+              </p>
+              <p className="text-xs text-slate-500 mb-3">
+                Click on any PDF to open it in a new tab
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {uploadedPDFs.map((pdf, index) => (
+                  <a
+                    key={index}
+                    href={pdf.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="relative group rounded-xl border-2 border-emerald-200 bg-white hover:bg-emerald-50 p-5 transition-all cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-1"
+                  >
+                    {/* Delete Button - Top Right */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        removeUploadedPDF(index);
+                      }}
+                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full transition opacity-0 group-hover:opacity-100 z-10"
+                      title="Remove PDF"
+                    >
+                      <XIcon className="w-3 h-3" />
+                    </button>
+
+                    <div className="flex flex-col items-center text-center">
+                      {/* PDF Icon - Large */}
+                      <div className="mb-4">
                         <svg
-                          className="w-3 h-3"
-                          fill="none"
-                          stroke="currentColor"
+                          width="64"
+                          height="64"
                           viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
                         >
                           <path
+                            d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"
+                            fill="#10b981"
+                            stroke="#10b981"
+                            strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
                           />
+                          <path
+                            d="M14 2V8H20"
+                            fill="#fff"
+                            stroke="#10b981"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <text
+                            x="12"
+                            y="16"
+                            fontSize="5"
+                            fontWeight="bold"
+                            fill="#fff"
+                            textAnchor="middle"
+                          >
+                            PDF
+                          </text>
                         </svg>
-                      </button>
+                      </div>
+
+                      {/* File Info */}
+                      <h3 className="text-base font-semibold text-emerald-700 group-hover:text-emerald-800 mb-1">
+                        PDF #{index + 1}
+                      </h3>
+                      <p
+                        className="text-sm text-slate-700 truncate w-full mb-1"
+                        title={pdf.fileName}
+                      >
+                        {pdf.fileName}
+                      </p>
+                      <p className="text-xs text-slate-500 mb-2">
+                        {formatFileSize(pdf.sizeInBytes)}
+                      </p>
+                      <p className="text-xs text-emerald-600 font-medium">
+                        Click to open
+                      </p>
                     </div>
-                  );
-                })}
+                  </a>
+                ))}
               </div>
             </div>
           )}
