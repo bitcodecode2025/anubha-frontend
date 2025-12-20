@@ -20,7 +20,7 @@ export default function HomePage() {
       <Hero />
       <section
         id="about"
-        className="px-6 sm:px-8 lg:px-16 py-12 bg-gradient-to-b from-white to-[#FAF6F0]/30"
+        className="px-6 sm:px-8 lg:px-16 py-8 bg-gradient-to-b from-white to-[#FAF6F0]/30"
       >
         <div className="max-w-4xl mx-auto w-full">
           <About />
