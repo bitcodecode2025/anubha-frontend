@@ -48,12 +48,12 @@ const fruits = [
 
 export default function Hero() {
   return (
-    <section className="relative flex flex-col items-center justify-center text-center overflow-hidden pb-6">
+    <section className="relative flex flex-col items-center justify-center text-center overflow-hidden pb-4">
       <HeroClient fruits={fruits} />
 
       <div className="absolute inset-0 bg-gradient-to-b from-[#FAF6F0]/95 via-white/80 to-transparent" />
 
-      <div className="relative z-10 flex flex-col items-center justify-start min-h-[70vh] sm:min-h-[60vh] px-6 max-w-3xl text-center">
+      <div className="relative z-10 flex flex-col items-center justify-start min-h-[50vh] sm:min-h-[45vh] px-6 max-w-3xl text-center">
         <p className="uppercase tracking-[0.35em] text-xs sm:text-sm text-emerald-600 mb-4">
           Nutritional healing that lasts
         </p>

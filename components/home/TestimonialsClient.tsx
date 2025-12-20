@@ -15,13 +15,22 @@ type TestimonialCardProps = {
 function TestimonialCard({
   testimonial,
   index,
-}: TestimonialCardProps & { index: number }) {
+  isMobile = false,
+}: TestimonialCardProps & { index: number; isMobile?: boolean }) {
   return (
     <div
-      className="snap-center shrink-0 w-[85vw] sm:w-auto sm:snap-align-none group perspective-1000 animate-float"
-      style={{ animationDelay: `${index * 0.2}s` }}
+      className={`snap-start shrink-0 w-[85vw] sm:w-auto sm:snap-align-none group ${
+        isMobile ? "" : "perspective-1000 animate-float"
+      }`}
+      style={isMobile ? undefined : { animationDelay: `${index * 0.2}s` }}
     >
-      <div className="relative h-full bg-white rounded-3xl p-4 shadow-lg hover:shadow-2xl transition-all duration-500 hover:scale-[1.03] hover:-translate-y-1 border border-emerald-100">
+      <div
+        className={`relative h-full bg-white rounded-3xl p-4 border border-emerald-100 transition-all duration-500 ${
+          isMobile
+            ? "shadow-md"
+            : "shadow-lg hover:shadow-2xl hover:scale-[1.03] hover:-translate-y-1"
+        }`}
+      >
         {/* Content card */}
 
         {/* Large Transformation Image with frame */}
@@ -141,13 +150,19 @@ export default function TestimonialsClient({ testimonials }: Props) {
           </div>
         </div>
 
-        {/* Scrollable testimonials */}
-        <div className="overflow-x-auto scrollbar-hide snap-x snap-mandatory flex gap-6 pb-4 -mx-6 px-6">
+        {/* Scrollable testimonials - iOS optimized for smooth native scrolling */}
+        <div
+          className="overflow-x-auto scrollbar-hide snap-x snap-proximity flex gap-6 pb-4 -mx-6 px-6"
+          style={{
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
           {testimonials.map((testimonial, index) => (
             <TestimonialCard
               key={testimonial.name}
               testimonial={testimonial}
               index={index}
+              isMobile={true}
             />
           ))}
         </div>
@@ -160,6 +175,7 @@ export default function TestimonialsClient({ testimonials }: Props) {
             key={testimonial.name}
             testimonial={testimonial}
             index={index}
+            isMobile={false}
           />
         ))}
       </div>
