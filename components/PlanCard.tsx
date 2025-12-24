@@ -7,6 +7,7 @@ import { useBookingForm } from "@/app/book/context/BookingFormContext";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import PatientSelectionModal from "@/components/doctor-notes/PatientSelectionModal";
+import AdminBookingBlockModal from "@/components/common/AdminBookingBlockModal";
 import toast from "react-hot-toast";
 import { createAppointment } from "@/lib/appointment";
 
@@ -24,10 +25,11 @@ export default function PlanCard({
   const [howOpen, setHowOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAdminBlockModalOpen, setIsAdminBlockModalOpen] = useState(false);
   const [pendingBooking, setPendingBooking] = useState<any>(null);
 
   const { setForm, resetForm } = useBookingForm();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   // dynamic height refs
@@ -55,10 +57,18 @@ export default function PlanCard({
       HANDLE BUY PLAN (Production Safe)
   --------------------------------------------------*/
   function handleBuyPlan(pkg: any) {
-    // Check if user is authenticated
+    // Do NOT redirect while auth is loading
+    if (loading) return;
+    // Check if user is authenticated (only after loading is complete)
     if (!user) {
       toast.error("Please login to book an appointment");
-      router.push("/login");
+      router.replace("/login");
+      return;
+    }
+
+    // Check if user is admin - block booking
+    if (user.role === "ADMIN") {
+      setIsAdminBlockModalOpen(true);
       return;
     }
 
@@ -366,6 +376,12 @@ export default function PlanCard({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSelectPatient={handlePatientSelected}
+      />
+
+      {/* Admin Booking Block Modal */}
+      <AdminBookingBlockModal
+        isOpen={isAdminBlockModalOpen}
+        onClose={() => setIsAdminBlockModalOpen(false)}
       />
     </motion.div>
   );

@@ -8,6 +8,10 @@ const api = axios.create({
   },
 });
 
+// Track retry attempts to prevent infinite loops
+const retryAttempts = new Map<string, number>();
+const MAX_RETRY_ATTEMPTS = 1; // Max 1 retry per request
+
 // Request interceptor - authentication handled via httpOnly cookies
 // No need to add Authorization header from localStorage (XSS risk)
 // Cookies are automatically sent with requests via withCredentials: true
@@ -15,6 +19,13 @@ api.interceptors.request.use(
   (config) => {
     // Authentication is handled via httpOnly cookies
     // Tokens are NOT stored in localStorage to prevent XSS attacks
+
+    // If FormData is being sent, remove Content-Type header
+    // axios will automatically set it with the correct boundary
+    if (config.data instanceof FormData && config.headers) {
+      delete config.headers["Content-Type"];
+    }
+
     return config;
   },
   (error) => {
@@ -22,35 +33,40 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle errors gracefully
+// Response interceptor to handle errors gracefully with automatic token refresh
 api.interceptors.response.use(
-  (response) => response,
-  (error: unknown) => {
+  (response) => {
+    // Clear retry attempt on success
+    const requestKey = response.config?.url || "";
+    retryAttempts.delete(requestKey);
+    return response;
+  },
+  async (error: any) => {
+    const config = error.config as any;
+
     // Type guard to check if error is an AxiosError-like object
     const axiosError = error as {
       response?: { status: number; data: any };
       request?: any;
       message?: string;
-      config?: { url?: string };
+      config?: any;
     };
-    // Only log errors that aren't expected (like 401, 400 with validation errors)
+
     if (axiosError.response) {
       const status = axiosError.response.status;
       const data = axiosError.response.data as any;
       const url = axiosError.config?.url || "";
 
-      // Handle 401 Unauthorized - clear auth state
+      // Handle 401 Unauthorized - user is not authenticated
       if (status === 401) {
-        // Don't clear on /auth/me or /auth/logout to avoid loops
-        if (!url.includes("/auth/me") && !url.includes("/auth/logout")) {
-          if (typeof window !== "undefined") {
-            localStorage.removeItem("user");
-            // Note: auth_token is not stored in localStorage (uses httpOnly cookies)
-            // Dispatch custom event for AuthContext to listen to
-            window.dispatchEvent(new CustomEvent("auth:logout"));
-          }
+        // Clear user data on 401
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("user");
+          // Dispatch logout event for AuthContext
+          window.dispatchEvent(new CustomEvent("auth:logout"));
         }
-        // Don't log 401 errors - they're expected
+
+        // For auth endpoints or if refresh not applicable, just reject
         return Promise.reject(error);
       }
 

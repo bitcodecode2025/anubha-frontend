@@ -109,3 +109,74 @@ export async function getMe() {
     throw error;
   }
 }
+
+export async function sendLinkPhoneEmailOtp(data: {
+  email: string;
+  phone: string;
+}) {
+  try {
+    if (!data || !data.email || !data.phone) {
+      throw new Error("Email and phone are required");
+    }
+    const response = await api.post("auth/link-phone/send-email-otp", data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[API] Send link phone email OTP error:",
+      error?.response?.data || error?.message
+    );
+    throw error;
+  }
+}
+
+export async function verifyLinkPhoneEmailOtp(data: {
+  email: string;
+  phone: string;
+  otp: string;
+}) {
+  try {
+    if (!data || !data.email || !data.phone || !data.otp) {
+      throw new Error("Email, phone, and OTP are required");
+    }
+    const response = await api.post("auth/link-phone/verify-email-otp", data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[API] Verify link phone email OTP error:",
+      error?.response?.data || error?.message
+    );
+    throw error;
+  }
+}
+
+export async function sendAddEmailOtp(data: { email: string }) {
+  try {
+    if (!data || !data.email) {
+      throw new Error("Email is required");
+    }
+    const response = await api.post("auth/add-email/send-otp", data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[API] Send add email OTP error:",
+      error?.response?.data || error?.message
+    );
+    throw error;
+  }
+}
+
+export async function verifyAddEmailOtp(data: { email: string; otp: string }) {
+  try {
+    if (!data || !data.email || !data.otp) {
+      throw new Error("Email and OTP are required");
+    }
+    const response = await api.post("auth/add-email/verify-otp", data);
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[API] Verify add email OTP error:",
+      error?.response?.data || error?.message
+    );
+    throw error;
+  }
+}

@@ -29,7 +29,7 @@ import toast from "react-hot-toast";
 
 export default function EditSlotsPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading } = useAuth();
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -67,23 +67,7 @@ export default function EditSlotsPage() {
   } | null>(null);
   const [loadingDateRange, setLoadingDateRange] = useState(false);
 
-  // Auth check
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user || user.role !== "ADMIN") {
-      router.replace("/admin");
-    }
-  }, [user, authLoading, router]);
-
-  // Load day offs and slot date range on mount
-  useEffect(() => {
-    if (user?.role === "ADMIN") {
-      loadDayOffs();
-      loadSlotDateRange();
-    }
-  }, [user]);
-
-  // Reload slot date range after creating slots
+  // Define all functions BEFORE useEffect hooks to maintain hook order
   const loadSlotDateRange = async () => {
     try {
       setLoadingDateRange(true);
@@ -102,16 +86,6 @@ export default function EditSlotsPage() {
     }
   };
 
-  // Load preview when date range or modes change
-  useEffect(() => {
-    if (user?.role === "ADMIN" && startDate && endDate && modes.length > 0) {
-      loadSlotPreview();
-    } else {
-      setSlotPreview(null);
-      setExistingSlots([]);
-    }
-  }, [user, startDate, endDate, modes]);
-
   const loadDayOffs = async () => {
     try {
       setLoadingDayOffs(true);
@@ -122,20 +96,6 @@ export default function EditSlotsPage() {
       toast.error(error?.response?.data?.message || "Failed to load day offs");
     } finally {
       setLoadingDayOffs(false);
-    }
-  };
-
-  const loadExistingSlots = async () => {
-    if (!startDate || !endDate) return;
-    try {
-      setLoadingExistingSlots(true);
-      const data = await getExistingSlots(startDate, endDate);
-      setExistingSlots(data);
-    } catch (error: any) {
-      console.error("Failed to load existing slots:", error);
-      // Don't show toast for this, just log it
-    } finally {
-      setLoadingExistingSlots(false);
     }
   };
 
@@ -163,8 +123,66 @@ export default function EditSlotsPage() {
     }
   };
 
+  // 🔒 ROUTE PROTECTION: Redirect if not authenticated or not admin
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+      if (user.role !== "ADMIN") {
+        router.replace("/");
+        return;
+      }
+    }
+  }, [user, loading, router]);
+
+  // Load day offs and slot date range on mount
+  // CRITICAL: Do NOT call APIs until backend auth_token cookie is ready
+  useEffect(() => {
+    if (!user || user.role !== "ADMIN") return;
+
+    loadDayOffs();
+    loadSlotDateRange();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Load preview when date range or modes change
+  // CRITICAL: Do NOT call APIs until backend auth_token cookie is ready
+  useEffect(() => {
+    if (!user || user.role !== "ADMIN") return;
+
+    if (startDate && endDate && modes.length > 0) {
+      loadSlotPreview();
+    } else {
+      setSlotPreview(null);
+      setExistingSlots([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, startDate, endDate, modes]);
+
+  const loadExistingSlots = async () => {
+    if (!startDate || !endDate) return;
+    try {
+      setLoadingExistingSlots(true);
+      const data = await getExistingSlots(startDate, endDate);
+      setExistingSlots(data);
+    } catch (error: any) {
+      console.error("Failed to load existing slots:", error);
+      // Don't show toast for this, just log it
+    } finally {
+      setLoadingExistingSlots(false);
+    }
+  };
+
   const handleCreateSlots = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Guard: Do not proceed if backend token is not ready
+    if (!user || user.role !== "ADMIN") {
+      toast.error("Please wait for authentication to complete");
+      return;
+    }
 
     if (!startDate || !endDate) {
       toast.error("Please select both start and end dates");
@@ -283,6 +301,12 @@ export default function EditSlotsPage() {
       if (!confirmed) return;
     }
 
+    // Guard: Do not proceed if backend token is not ready
+    if (!user || user.role !== "ADMIN") {
+      toast.error("Please wait for authentication to complete");
+      return;
+    }
+
     try {
       setAddingDayOff(true);
       setDayOffError(null);
@@ -321,6 +345,12 @@ export default function EditSlotsPage() {
   };
 
   const handleRemoveDayOff = async (id: string) => {
+    // Guard: Do not proceed if backend token is not ready
+    if (!user || user.role !== "ADMIN") {
+      toast.error("Please wait for authentication to complete");
+      return;
+    }
+
     try {
       setRemovingDayOffId(id);
       await removeDayOff(id);
@@ -394,7 +424,7 @@ export default function EditSlotsPage() {
     return { days, sundayCount, dayOffCount };
   };
 
-  if (authLoading || !user || user.role !== "ADMIN") {
+  if (loading || !user || user.role !== "ADMIN") {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />

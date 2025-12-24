@@ -56,6 +56,9 @@ function PDFAttachmentList({
   onAttachmentDeleted?: () => void;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  console.log("[PDFAttachmentList] Received attachments:", attachments);
+  console.log("[PDFAttachmentList] Attachments count:", attachments?.length || 0);
 
   const handleDelete = async (attachmentId: string, fileName: string) => {
     if (!confirm(`Are you sure you want to delete "${fileName}"?`)) {
@@ -294,6 +297,52 @@ export default function DoctorNotesPreview({
   attachments = [],
   onAttachmentDeleted,
 }: DoctorNotesPreviewProps) {
+  // Debug logging
+  console.log("[DoctorNotesPreview] Received attachments:", attachments);
+  console.log("[DoctorNotesPreview] Attachments count:", attachments?.length || 0);
+  console.log("[DoctorNotesPreview] Attachments array:", JSON.stringify(attachments, null, 2));
+
+  // Ensure attachments is always an array
+  const apiAttachments = Array.isArray(attachments) ? attachments : [];
+  
+  // Extract uploadedPDFs from formData.dietPrescribed.uploadedPDFs
+  const formDataUploadedPDFs = (formData.dietPrescribed as any)?.uploadedPDFs || [];
+  console.log("[DoctorNotesPreview] FormData uploadedPDFs:", formDataUploadedPDFs);
+  
+  // Merge API attachments with formData uploadedPDFs
+  // Remove duplicates based on URL or ID
+  const allAttachments = [...apiAttachments];
+  formDataUploadedPDFs.forEach((formPdf: any) => {
+    const formPdfUrl = formPdf.url || formPdf.fileUrl;
+    const formPdfId = formPdf.id;
+    
+    // Check if this PDF already exists in API attachments
+    const exists = allAttachments.some(
+      (apiAtt) =>
+        apiAtt.fileUrl === formPdfUrl ||
+        apiAtt.id === formPdfId ||
+        (apiAtt.fileName === formPdf.fileName && apiAtt.sizeInBytes === formPdf.sizeInBytes)
+    );
+    
+    if (!exists && formPdfUrl) {
+      // Add formData PDF if it doesn't exist in API attachments
+      allAttachments.push({
+        id: formPdfId || `formdata-${allAttachments.length}`,
+        fileName: formPdf.fileName || formPdf.name || `PDF ${allAttachments.length + 1}`,
+        fileUrl: formPdfUrl,
+        mimeType: formPdf.mimeType || "application/pdf",
+        sizeInBytes: formPdf.sizeInBytes || formPdf.size || 0,
+        fileCategory: "DIET_CHART",
+        section: "DietPrescribed",
+        createdAt: formPdf.createdAt || new Date().toISOString(),
+      });
+    }
+  });
+  
+  const safeAttachments = allAttachments;
+  console.log("[DoctorNotesPreview] Combined attachments:", safeAttachments);
+  console.log("[DoctorNotesPreview] Total attachments count:", safeAttachments.length);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -2362,89 +2411,20 @@ export default function DoctorNotesPreview({
               <FieldDisplay label="Code" value={formData.dietPrescribed.code} />
 
               {/* Uploaded PDFs */}
-              {attachments && attachments.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="font-semibold text-slate-700 mb-3 text-sm">
-                    Uploaded Diet Charts ({attachments.length})
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {attachments.map((pdf, index) => (
-                      <div
-                        key={pdf.id || index}
-                        className="rounded-lg border border-emerald-200 bg-emerald-50 p-3"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
-                            <FileText className="w-5 h-5 text-emerald-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className="text-sm font-medium text-slate-800 truncate mb-1"
-                              title={pdf.fileName}
-                            >
-                              {pdf.fileName}
-                            </p>
-                            <p className="text-xs text-slate-500 mb-2">
-                              {(pdf.sizeInBytes / 1024 / 1024).toFixed(2)} MB
-                            </p>
-                            {pdf.fileUrl && (
-                              <a
-                                href={pdf.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                Preview PDF
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <FieldDisplay
-                label="Expiry Date"
-                value={formData.dietPrescribed.expiryDate}
-              />
-              <FieldDisplay
-                label="Diet Prescription Date"
-                value={formData.dietPrescribed.dietPrescriptionDate}
-              />
-              <FieldDisplay label="Date" value={formData.dietPrescribed.date} />
-              <div className="md:col-span-2">
-                <FieldDisplay
-                  label="Duration of Diet"
-                  value={formData.dietPrescribed.durationOfDiet}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <FieldDisplay
-                  label="Diet Chart"
-                  value={formData.dietPrescribed.dietChart}
-                />
-              </div>
-              {/* PDF Attachments */}
-              {(attachments.some(
-                (att) =>
-                  att.section === "DietPrescribed" &&
-                  att.fileCategory === "DIET_CHART"
-              ) ||
+              {(safeAttachments.length > 0 ||
+                (formData.dietPrescribed as any)?.uploadedPDFs?.length > 0 ||
                 (formData.dietPrescribed as any)?.dietChartUrl) && (
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 mt-4">
                   <div className="bg-white border-2 border-emerald-200 rounded-lg p-4 shadow-sm">
-                    <label className="block font-semibold mb-3 text-slate-700 text-sm sm:text-base">
-                      Diet Chart PDFs
-                    </label>
                     {/* Show all attachments from API, fallback to formData for backward compatibility */}
                     {(() => {
-                      const dietChartAttachments = attachments.filter(
+                      const dietChartAttachments = safeAttachments.filter(
                         (att) =>
                           att.section === "DietPrescribed" &&
                           att.fileCategory === "DIET_CHART"
                       );
+                      
+                      console.log("[DoctorNotesPreview] Filtered diet chart attachments:", dietChartAttachments);
 
                       // Fallback to single file from formData for backward compatibility
                       // Note: These fields may not exist in the TypeScript interface but could be in the data
@@ -2455,8 +2435,14 @@ export default function DoctorNotesPreview({
                       const legacyFileSize =
                         dietPrescribedData?.dietChartFileSize;
 
-                      // If no attachments found, check for legacy single file
-                      if (dietChartAttachments.length === 0 && !legacyPdfUrl) {
+                      // If no filtered attachments found, show all attachments as fallback
+                      // This ensures PDFs are visible even if section/fileCategory don't match exactly
+                      const attachmentsToShow = dietChartAttachments.length > 0 
+                        ? dietChartAttachments 
+                        : safeAttachments.filter(att => att.mimeType === "application/pdf");
+                      
+                      // If still no attachments found, check for legacy single file
+                      if (attachmentsToShow.length === 0 && !legacyPdfUrl) {
                         return (
                           <p className="text-sm text-slate-500 italic">
                             No PDF files uploaded
@@ -2479,17 +2465,90 @@ export default function DoctorNotesPreview({
 
                       return (
                         <div className="space-y-2">
-                          {/* Display all attachments */}
-                          <PDFAttachmentList
-                            attachments={dietChartAttachments}
-                            formatFileSize={formatFileSize}
-                            onAttachmentDeleted={
-                              onAttachmentDeleted || undefined
-                            }
-                          />
+                          <p className="text-sm font-medium text-slate-700 mb-3">
+                            Uploaded PDFs ({attachmentsToShow.length}/15)
+                          </p>
+                          {/* Display all attachments in the same format as the form */}
+                          {attachmentsToShow.length > 0 && (
+                            <>
+                              <p className="text-xs text-slate-500 mb-3">
+                                Click on any PDF to open it in a new tab
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                {attachmentsToShow.map((pdf, index) => (
+                                  <a
+                                    key={pdf.id || index}
+                                    href={pdf.fileUrl || "#"}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="relative group rounded-xl border-2 border-emerald-200 bg-white hover:bg-emerald-50 p-5 transition-all cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-1"
+                                  >
+                                    <div className="flex flex-col items-center text-center">
+                                      {/* PDF Icon - Large */}
+                                      <div className="mb-4">
+                                        <svg
+                                          width="64"
+                                          height="64"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          xmlns="http://www.w3.org/2000/svg"
+                                        >
+                                          <path
+                                            d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"
+                                            fill="#10b981"
+                                            stroke="#10b981"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          />
+                                          <path
+                                            d="M14 2V8H20"
+                                            fill="#fff"
+                                            stroke="#10b981"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          />
+                                          <text
+                                            x="12"
+                                            y="16"
+                                            fontSize="5"
+                                            fontWeight="bold"
+                                            fill="#fff"
+                                            textAnchor="middle"
+                                          >
+                                            PDF
+                                          </text>
+                                        </svg>
+                                      </div>
+
+                                      {/* File Info */}
+                                      <h3 className="text-base font-semibold text-emerald-700 group-hover:text-emerald-800 mb-1">
+                                        PDF #{index + 1}
+                                      </h3>
+                                      <p
+                                        className="text-sm text-slate-700 truncate w-full mb-1"
+                                        title={pdf.fileName}
+                                      >
+                                        {pdf.fileName}
+                                      </p>
+                                      {pdf.sizeInBytes && (
+                                        <p className="text-xs text-slate-500">
+                                          {formatFileSize(pdf.sizeInBytes)}
+                                        </p>
+                                      )}
+                                      <p className="text-xs text-emerald-600 font-medium mt-2">
+                                        Click to open
+                                      </p>
+                                    </div>
+                                  </a>
+                                ))}
+                              </div>
+                            </>
+                          )}
 
                           {/* Legacy single file fallback */}
-                          {dietChartAttachments.length === 0 &&
+                          {attachmentsToShow.length === 0 &&
                             legacyPdfUrl && (
                               <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors">
                                 <a
@@ -2543,7 +2602,6 @@ export default function DoctorNotesPreview({
                   </div>
                 </div>
               )}
-              <FieldDisplay label="Code" value={formData.dietPrescribed.code} />
             </SectionWrapper>
           )}
 

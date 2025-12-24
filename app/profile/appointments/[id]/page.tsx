@@ -117,10 +117,13 @@ export default function UserAppointmentDetailsPage() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (user && appointmentId) {
-      fetchAppointmentDetails();
-    }
-  }, [appointmentId, user]);
+    // CRITICAL: Do NOT call APIs while auth is loading or user is null
+    if (authLoading) return; // Wait for auth to resolve
+    if (!user) return; // Do not call APIs if user is null
+    if (!appointmentId) return; // Need appointment ID
+
+    fetchAppointmentDetails();
+  }, [appointmentId, user, authLoading]);
 
   async function fetchAppointmentDetails() {
     setLoading(true);
@@ -170,6 +173,25 @@ export default function UserAppointmentDetailsPage() {
       toast.error(error.message || "Failed to download invoice");
     } finally {
       setDownloadingInvoice(false);
+    }
+  }
+
+  async function handleDownloadImage(imageUrl: string, fileName: string) {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success("Image downloaded successfully");
+    } catch (error: any) {
+      console.error("Failed to download image:", error);
+      toast.error("Failed to download image");
     }
   }
 
@@ -288,52 +310,52 @@ export default function UserAppointmentDetailsPage() {
             Patient Details
           </h3>
           <div className="bg-slate-50 rounded-lg p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Name</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.name}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Phone</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.phone}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Email</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words break-all">
                   {appointment.patient.email}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0 flex-shrink-0">
                 <div className="text-sm text-slate-600 mb-1">Age</div>
                 <div className="font-medium text-slate-900">
                   {appointment.patient.age} years
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Gender</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.gender}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Weight</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.weight} kg
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Height</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.height} cm
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Date of Birth</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {new Date(appointment.patient.dateOfBirth).toLocaleDateString(
                     "en-IN"
                   )}
@@ -521,6 +543,16 @@ export default function UserAppointmentDetailsPage() {
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded mb-2 flex items-center justify-center transition-colors">
                         <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadImage(file.url, file.fileName);
+                        }}
+                        className="absolute bottom-2 right-2 p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Download image"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
                     </div>
                   ) : (
                     <div className="w-full h-48 bg-slate-200 rounded mb-2 flex items-center justify-center">

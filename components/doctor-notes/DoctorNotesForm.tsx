@@ -470,13 +470,15 @@ export default function DoctorNotesForm({
                   : ""
               }
               onChange={(val) => {
-                const numVal = val === "" ? 0 : val ? parseInt(val) : undefined;
-                updateFormData(
-                  ["numberOfChildren"],
-                  numVal !== undefined && numVal !== null && !isNaN(numVal)
-                    ? numVal
-                    : 0
-                );
+                // Handle empty string as 0, or parse the number
+                if (val === "") {
+                  updateFormData(["numberOfChildren"], 0);
+                } else {
+                  const numVal = parseInt(val, 10);
+                  if (!isNaN(numVal) && numVal >= 0) {
+                    updateFormData(["numberOfChildren"], numVal);
+                  }
+                }
               }}
             />
             <Select
@@ -772,6 +774,11 @@ function Input({
   onChange,
   placeholder,
 }: InputProps) {
+  // For number inputs, preserve 0 as a valid value (don't convert to empty string)
+  const displayValue = type === "number" 
+    ? (value === undefined || value === null ? "" : value)
+    : (value || "");
+  
   return (
     <div className="input-group">
       <label className="block font-semibold mb-2 text-[#4A4842] text-sm sm:text-base">
@@ -779,7 +786,7 @@ function Input({
       </label>
       <motion.input
         type={type}
-        value={value || ""}
+        value={displayValue}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="form-input w-full border-2 border-[#D4C4B0] bg-[#FAF6F0] p-3 sm:p-3.5 rounded-lg text-[#2D2A24] text-base focus:border-[#6B9B6A] focus:bg-[#F7F3ED] focus:ring-2 focus:ring-[#6B9B6A]/50 transition-all duration-300 touch-manipulation"
@@ -3460,11 +3467,6 @@ function DietPrescribedSection({
         onChange={(val) =>
           updateFormData(["dietPrescribed", "dietPrescriptionDate"], val)
         }
-      />
-      <DateInput
-        label="Date"
-        value={dietPrescribed.date || ""}
-        onChange={(val) => updateFormData(["dietPrescribed", "date"], val)}
       />
       <div className="md:col-span-2">
         <TextArea

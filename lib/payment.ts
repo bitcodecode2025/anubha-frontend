@@ -31,6 +31,8 @@ export interface GetExistingOrderResponse {
   };
   appointmentId?: string;
   error?: string;
+  shouldCreateNew?: boolean; // Backend signals: create new order (expired/invalid)
+  expired?: boolean; // Backend signals: order expired
 }
 
 /**
@@ -131,6 +133,10 @@ export async function getExistingOrder(
       data: error?.response?.data,
     });
 
+    // Check if backend says we should create new order (expired/invalid order)
+    const shouldCreateNew = error?.response?.data?.shouldCreateNew === true;
+    const expired = error?.response?.data?.expired === true;
+
     // Extract error message from response
     const errorMessage =
       error?.response?.data?.error ||
@@ -141,6 +147,8 @@ export async function getExistingOrder(
     return {
       success: false,
       error: errorMessage,
+      shouldCreateNew, // Pass this flag to frontend
+      expired, // Pass this flag to frontend
     };
   }
 }

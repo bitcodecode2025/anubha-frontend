@@ -71,26 +71,82 @@ export default function PaymentPage() {
   const paymentInitiatedRef = useRef(false); // Prevent double payment initiation
   const [paymentResponse, setPaymentResponse] = useState<any>(null); // Store payment response for verification
   const [isDisclaimerAgreed, setIsDisclaimerAgreed] = useState(false); // Disclaimer agreement state
+  const paymentSuccessfulRef = useRef(false); // Track if payment was successful to prevent validation after resetForm
 
   /* -------------------------------------------------
       BLOCK DIRECT ACCESS & VALIDATE BOOKING DATA
   -------------------------------------------------- */
   useEffect(() => {
-    if (!form.appointmentId || !form.slotId || !form.planSlug) {
-      // If no current booking, redirect to slot selection
-      safeToast("error", "Please complete the booking process first");
-      router.push("/book/slot");
+    // Skip validation if payment was successful (form will be reset)
+    if (paymentSuccessfulRef.current) {
       return;
     }
 
-    // Update booking progress to PAYMENT when user reaches payment page
-    if (form.appointmentId) {
-      updateBookingProgress(form.appointmentId, "PAYMENT").catch((err) => {
-        console.error("[PAYMENT] Failed to update booking progress:", err);
-        // Non-blocking error
-      });
-    }
-  }, [form.appointmentId, form.slotId, form.planSlug, router]);
+    // Helper function to check form data (from state or localStorage)
+    const checkFormData = () => {
+      // Check current form state
+      if (form.appointmentId && form.slotId && form.planSlug) {
+        return true;
+      }
+
+      // Fallback: Check localStorage directly (in case form hasn't loaded yet)
+      try {
+        const savedForm = localStorage.getItem("bookingForm");
+        if (savedForm) {
+          const parsed = JSON.parse(savedForm);
+          if (parsed.appointmentId && parsed.slotId && parsed.planSlug) {
+            // Form data exists in localStorage, update form state
+            setForm({
+              appointmentId: parsed.appointmentId,
+              slotId: parsed.slotId,
+              planSlug: parsed.planSlug,
+            });
+            return true;
+          }
+        }
+      } catch (err) {
+        console.error("[PAYMENT] Error reading localStorage:", err);
+      }
+
+      return false;
+    };
+
+    // Wait a bit for form to load from localStorage after navigation
+    // This prevents false negatives when navigating from slot selection page
+    const timer = setTimeout(() => {
+      if (!checkFormData()) {
+        // If no current booking data found, redirect to slot selection
+        safeToast("error", "Please complete the booking process first");
+        router.push("/book/slot");
+        return;
+      }
+
+      // Update booking progress to PAYMENT when user reaches payment page
+      const appointmentId =
+        form.appointmentId ||
+        (() => {
+          try {
+            const saved = localStorage.getItem("bookingForm");
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              return parsed.appointmentId;
+            }
+          } catch (err) {
+            return null;
+          }
+          return null;
+        })();
+
+      if (appointmentId) {
+        updateBookingProgress(appointmentId, "PAYMENT").catch((err) => {
+          console.error("[PAYMENT] Failed to update booking progress:", err);
+          // Non-blocking error
+        });
+      }
+    }, 150); // Small delay to allow form state to load from localStorage
+
+    return () => clearTimeout(timer);
+  }, [form.appointmentId, form.slotId, form.planSlug, router, setForm]);
 
   /* -------------------------------------------------
       LOAD RAZORPAY SCRIPT
@@ -167,6 +223,10 @@ export default function PaymentPage() {
         if (verifyResponse.success) {
           console.log("[PAYMENT] Payment verified successfully");
 
+          // Mark payment as successful BEFORE resetting form
+          // This prevents validation error after resetForm() clears the form
+          paymentSuccessfulRef.current = true;
+
           // Reset form
           resetForm();
           setProcessing(false);
@@ -226,7 +286,7 @@ export default function PaymentPage() {
       key: razorpayKeyId,
       amount: order.amount, // Already in paise from Razorpay
       currency: order.currency || "INR",
-      name: "Nutriwell",
+      name: "Anubha Nutrition Clinic",
       description: form.planName || "Appointment Booking",
       order_id: order.id,
       handler: function (response: any) {
@@ -387,6 +447,54 @@ export default function PaymentPage() {
           form.appointmentId
         );
 
+        // Check if backend says to create new order (expired/invalid)
+        if (existingOrderResponse.shouldCreateNew) {
+          console.log(
+            "[PAYMENT] Backend says to create new order (expired/invalid)"
+          );
+          setResumingPayment(false);
+
+          if (existingOrderResponse.expired) {
+            safeToast(
+              "error",
+              "Your previous payment link expired. Creating a fresh one...",
+              0
+            );
+          } else {
+            safeToast(
+              "error",
+              "Previous payment link is invalid. Creating a fresh one...",
+              0
+            );
+          }
+
+          // Wait a moment for user to see the message
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+
+          // Retry creating order (backend has cleared the old one)
+          const retryOrderResponse = await createOrder({
+            appointmentId: form.appointmentId,
+          });
+
+          if (retryOrderResponse.success && retryOrderResponse.order) {
+            console.log("[PAYMENT] New order created after expiry:", {
+              orderId: retryOrderResponse.order.id,
+              amount: retryOrderResponse.order.amount,
+            });
+            setOrderCreated(true);
+            setLoading(false);
+            safeToast("success", "Payment link ready!", 0);
+
+            // Start payment with new order
+            startRazorpayPayment(retryOrderResponse.order);
+            return;
+          } else {
+            throw new Error(
+              retryOrderResponse.error || "Failed to create fresh payment link"
+            );
+          }
+        }
+
         if (existingOrderResponse.success && existingOrderResponse.order) {
           console.log(
             "[PAYMENT] Existing order found:",
@@ -396,11 +504,13 @@ export default function PaymentPage() {
           setLoading(false);
           setResumingPayment(false);
 
+          safeToast("success", "Resuming your payment...", 0);
+
           // Resume payment with existing order
           startRazorpayPayment(existingOrderResponse.order);
           return;
         } else {
-          // If we can't get existing order, show error
+          // If we can't get existing order and no shouldCreateNew flag, show error
           throw new Error(
             existingOrderResponse.error ||
               "Failed to resume payment. Please try again."

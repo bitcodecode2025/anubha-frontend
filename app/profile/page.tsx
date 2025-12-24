@@ -8,6 +8,7 @@ import { useAuth } from "@/app/context/AuthContext";
 import {
   User,
   Phone,
+  Mail,
   Shield,
   LogOut,
   Loader2,
@@ -49,6 +50,8 @@ import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal"
 import SuccessNotification from "@/components/admin/SuccessNotification";
 import { ChevronDown } from "lucide-react";
 import BabySolidPlanOptions from "@/components/appointments/BabySolidPlanOptions";
+import { sendAddEmailOtp, verifyAddEmailOtp } from "@/lib/auth";
+import OtpInput from "@/components/auth/OtpInput";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -81,9 +84,32 @@ export default function ProfilePage() {
   const [loadingPatients, setLoadingPatients] = useState(false);
   const [loadingPatientDetails, setLoadingPatientDetails] = useState(false);
 
+  // Admin data state (fetched from Admin model)
+  const [adminData, setAdminData] = useState<{
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    role: "ADMIN";
+  } | null>(null);
+  const [loadingAdminData, setLoadingAdminData] = useState(false);
+
+  // Add Email state
+  const [showAddEmail, setShowAddEmail] = useState(false);
+  const [emailToAdd, setEmailToAdd] = useState("");
+  const [emailOtp, setEmailOtp] = useState("");
+  const [sendingEmailOtp, setSendingEmailOtp] = useState(false);
+  const [verifyingEmailOtp, setVerifyingEmailOtp] = useState(false);
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtpError, setEmailOtpError] = useState("");
+  const [emailResendCooldown, setEmailResendCooldown] = useState(0);
+
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
+    // Do NOT redirect while auth is loading
+    if (loading) return;
+    // Only redirect after auth state is fully resolved
+    if (!user) {
+      router.replace("/login");
     }
   }, [user, loading, router]);
 
@@ -176,20 +202,33 @@ export default function ProfilePage() {
   );
 
   // Initial load effect - runs when user is available
+  // CRITICAL: Do NOT call APIs while auth is loading or user is null
   useEffect(() => {
-    if (user && user.role !== "ADMIN") {
-      fetchPatients();
-      fetchAppointments();
-      fetchPendingAppointments();
-    }
-  }, [user, fetchPatients, fetchAppointments, fetchPendingAppointments]);
+    if (loading) return; // Wait for auth to resolve
+    if (!user) return; // Do not call APIs if user is null
+    if (user.role === "ADMIN") return; // Admins don't need this data
+
+    fetchPatients();
+    fetchAppointments();
+    fetchPendingAppointments();
+  }, [
+    user,
+    loading,
+    fetchPatients,
+    fetchAppointments,
+    fetchPendingAppointments,
+  ]);
 
   // Profile switching effect - runs when profile type or patient ID changes
+  // CRITICAL: Do NOT call APIs while auth is loading or user is null
   useEffect(() => {
+    if (loading) return; // Wait for auth to resolve
+    if (!user) return; // Do not call APIs if user is null
+
     if (selectedProfileType === "patient" && selectedPatientId) {
       fetchPatientDetails(selectedPatientId);
       fetchPatientAppointments(selectedPatientId);
-    } else if (selectedProfileType === "self" && user) {
+    } else if (selectedProfileType === "self") {
       fetchAppointments();
       fetchPendingAppointments(); // No patientId = fetch all pending for user
     } else if (selectedProfileType === "patient") {
@@ -201,6 +240,7 @@ export default function ProfilePage() {
     selectedProfileType,
     selectedPatientId,
     user,
+    loading,
     fetchPatientDetails,
     fetchPatientAppointments,
     fetchAppointments,
@@ -336,6 +376,83 @@ export default function ProfilePage() {
     router.push("/");
   };
 
+  // Add Email handlers
+  const handleSendEmailOtp = async () => {
+    if (!emailToAdd.trim()) {
+      setEmailOtpError("Please enter an email address");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailToAdd.trim())) {
+      setEmailOtpError("Please enter a valid email address");
+      return;
+    }
+
+    setSendingEmailOtp(true);
+    setEmailOtpError("");
+
+    try {
+      await sendAddEmailOtp({ email: emailToAdd.trim() });
+      setEmailOtpSent(true);
+      setEmailResendCooldown(60);
+      toast.success("Verification code sent to your email");
+
+      // Start cooldown timer
+      const interval = setInterval(() => {
+        setEmailResendCooldown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message || "Failed to send verification code";
+      setEmailOtpError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setSendingEmailOtp(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    if (emailOtp.length !== 4) {
+      setEmailOtpError("Please enter the 4-digit verification code");
+      return;
+    }
+
+    setVerifyingEmailOtp(true);
+    setEmailOtpError("");
+
+    try {
+      const response = (await verifyAddEmailOtp({
+        email: emailToAdd.trim(),
+        otp: emailOtp,
+      })) as { success: boolean; user?: any; message?: string };
+
+      if (response.success && response.user) {
+        // Force refresh to get updated user data
+        window.location.reload();
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message || "Failed to verify code";
+      setEmailOtpError(errorMessage);
+      toast.error(errorMessage);
+      setEmailOtp("");
+    } finally {
+      setVerifyingEmailOtp(false);
+    }
+  };
+
+  const handleResendEmailOtp = async () => {
+    if (emailResendCooldown > 0) return;
+    await handleSendEmailOtp();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-emerald-50/40">
@@ -359,7 +476,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-emerald-50/40 py-10 px-6">
+    <div className="min-h-screen bg-gradient-to-b from-white to-emerald-50/40 py-6 sm:py-10 px-4 sm:px-6">
       <div className="max-w-6xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -368,7 +485,7 @@ export default function ProfilePage() {
           className="w-full"
         >
           {/* Profile Card */}
-          <div className="p-8 rounded-3xl bg-white/30 backdrop-blur-xl shadow-2xl border border-white/40 mb-8">
+          <div className="p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl bg-white/30 backdrop-blur-xl shadow-2xl border border-white/40 mb-6 sm:mb-8">
             {/* Profile Switcher Dropdown - Only for non-admin users */}
             {user && user.role !== "ADMIN" && (
               <div className="mb-6">
@@ -429,12 +546,12 @@ export default function ProfilePage() {
                   <User className="w-12 h-12 text-white" />
                 )}
               </motion.div>
-              <h1 className="text-3xl font-bold text-emerald-800 mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-emerald-800 mb-2 break-words px-2">
                 {selectedProfileType === "patient" && selectedPatientDetails
                   ? `${selectedPatientDetails.name}'s Profile`
                   : "Your Profile"}
               </h1>
-              <p className="text-slate-600 text-sm">
+              <p className="text-slate-600 text-xs sm:text-sm px-2">
                 {selectedProfileType === "patient"
                   ? "View patient information and appointments"
                   : "Manage your account information"}
@@ -456,12 +573,12 @@ export default function ProfilePage() {
                   className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-emerald-100">
+                    <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
                       <User className="w-5 h-5 text-emerald-700" />
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <p className="text-xs text-slate-500 font-medium">Name</p>
-                      <p className="text-slate-800 font-semibold">
+                      <p className="text-slate-800 font-semibold break-words">
                         {selectedProfileType === "patient" &&
                         selectedPatientDetails
                           ? selectedPatientDetails.name
@@ -471,33 +588,204 @@ export default function ProfilePage() {
                   </div>
                 </motion.div>
 
-                {/* Phone */}
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-emerald-100">
-                      <Phone className="w-5 h-5 text-emerald-700" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-slate-500 font-medium">
-                        Phone Number
-                      </p>
-                      <p className="text-slate-800 font-semibold">
-                        +91{" "}
-                        {formatPhone(
-                          selectedProfileType === "patient" &&
-                            selectedPatientDetails
-                            ? selectedPatientDetails.phone
+                {/* Phone - Only show if phone exists (not null) */}
+                {((selectedProfileType === "self" && user.phone) ||
+                  (selectedProfileType === "patient" &&
+                    selectedPatientDetails?.phone)) && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
+                        <Phone className="w-5 h-5 text-emerald-700" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-500 font-medium">
+                          Phone Number
+                        </p>
+                        <p className="text-slate-800 font-semibold break-words min-w-0">
+                          {selectedProfileType === "patient" &&
+                          selectedPatientDetails
+                            ? `+91 ${formatPhone(selectedPatientDetails.phone)}`
                             : user.phone
-                        )}
-                      </p>
+                            ? `+91 ${formatPhone(user.phone)}`
+                            : ""}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
+                  </motion.div>
+                )}
+
+                {/* Email - Only for self profile */}
+                {selectedProfileType === "self" && user.email && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
+                        <Mail className="w-5 h-5 text-emerald-700" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-500 font-medium">
+                          Email Address
+                        </p>
+                        <p className="text-slate-800 font-semibold break-words overflow-wrap-anywhere">
+                          {user.email}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Add Email - Only for self profile when email is null */}
+                {selectedProfileType === "self" && !user.email && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
+                  >
+                    {!showAddEmail ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
+                            <Mail className="w-5 h-5 text-emerald-700" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-slate-500 font-medium">
+                              Email Address
+                            </p>
+                            <p className="text-slate-600 text-sm">
+                              No email address added
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowAddEmail(true)}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors whitespace-nowrap"
+                        >
+                          Add Email
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
+                            <Mail className="w-5 h-5 text-emerald-700" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-slate-500 font-medium mb-2">
+                              Add Email Address
+                            </p>
+                            {!emailOtpSent ? (
+                              <div className="space-y-3">
+                                <input
+                                  type="email"
+                                  value={emailToAdd}
+                                  onChange={(e) => {
+                                    setEmailToAdd(e.target.value);
+                                    setEmailOtpError("");
+                                  }}
+                                  placeholder="Enter your email address"
+                                  className="w-full px-4 py-2 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                                  disabled={sendingEmailOtp}
+                                />
+                                {emailOtpError && (
+                                  <p className="text-sm text-red-600">
+                                    {emailOtpError}
+                                  </p>
+                                )}
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={handleSendEmailOtp}
+                                    disabled={sendingEmailOtp}
+                                    className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {sendingEmailOtp ? (
+                                      <span className="flex items-center justify-center gap-2">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Sending...
+                                      </span>
+                                    ) : (
+                                      "Verify Email"
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setShowAddEmail(false);
+                                      setEmailToAdd("");
+                                      setEmailOtpError("");
+                                    }}
+                                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <p className="text-sm text-slate-600 mb-2">
+                                  Enter the 4-digit code sent to{" "}
+                                  <span className="font-semibold">
+                                    {emailToAdd}
+                                  </span>
+                                </p>
+                                <OtpInput
+                                  value={emailOtp}
+                                  onChange={(value) => {
+                                    setEmailOtp(value);
+                                    setEmailOtpError("");
+                                  }}
+                                  error={!!emailOtpError}
+                                  disabled={verifyingEmailOtp}
+                                  autoFocus={true}
+                                />
+                                {emailOtpError && (
+                                  <p className="text-sm text-red-600">
+                                    {emailOtpError}
+                                  </p>
+                                )}
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={handleVerifyEmailOtp}
+                                    disabled={
+                                      verifyingEmailOtp || emailOtp.length !== 4
+                                    }
+                                    className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {verifyingEmailOtp ? (
+                                      <span className="flex items-center justify-center gap-2">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Verifying...
+                                      </span>
+                                    ) : (
+                                      "Verify Code"
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={handleResendEmailOtp}
+                                    disabled={emailResendCooldown > 0}
+                                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {emailResendCooldown > 0
+                                      ? `Resend (${emailResendCooldown}s)`
+                                      : "Resend"}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
 
                 {/* Additional Patient Information */}
                 {selectedProfileType === "patient" &&
@@ -512,14 +800,14 @@ export default function ProfilePage() {
                           className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-emerald-100">
+                            <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
                               <Shield className="w-5 h-5 text-emerald-700" />
                             </div>
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <p className="text-xs text-slate-500 font-medium">
                                 Email
                               </p>
-                              <p className="text-slate-800 font-semibold">
+                              <p className="text-slate-800 font-semibold break-words overflow-wrap-anywhere">
                                 {selectedPatientDetails.email}
                               </p>
                             </div>
