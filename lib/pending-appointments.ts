@@ -59,22 +59,9 @@ export async function getPendingAppointments(
     const url = patientId
       ? `appointments/pending?patientId=${patientId}`
       : "appointments/pending";
-    console.log(`[API] Fetching pending appointments from: ${url}`);
     const res = await api.get<GetPendingAppointmentsResponse>(url);
-    console.log("[API] Pending appointments response:", {
-      success: res.data.success,
-      count: res.data.appointments?.length || 0,
-      appointments: res.data.appointments,
-      patientId: patientId || "all",
-    });
     return res.data;
   } catch (error: any) {
-    console.error("[API] Error fetching pending appointments:", {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-      url: error?.config?.url,
-    });
     throw error;
   }
 }
@@ -99,11 +86,6 @@ export async function updateBookingProgress(
     );
     return res.data;
   } catch (error: any) {
-    console.error("[API] Update booking progress error:", {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-    });
     throw error;
   }
 }
@@ -125,7 +107,6 @@ export async function deletePendingAppointment(
     );
     return res.data;
   } catch (error: any) {
-    console.error("Failed to delete appointment:", error);
     throw error;
   }
 }

@@ -73,8 +73,6 @@ export async function uploadPDFFiles(files: File[]): Promise<PDFUploadResponse> 
 
     return response.data;
   } catch (error: any) {
-    console.error("[PDF UPLOAD] Error:", error);
-    
     // Handle specific error messages
     if (error.response?.data?.message) {
       throw new Error(error.response.data.message);

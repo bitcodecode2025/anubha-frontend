@@ -115,7 +115,6 @@ export default function NGOLightboxClient({ images }: NGOLightboxClientProps) {
   // =========================
 
   const enterManualMode = useCallback(() => {
-    console.log("👆 Manual interaction detected");
     setIsManualMode(true);
 
     // Clear any existing timeouts
@@ -129,7 +128,6 @@ export default function NGOLightboxClient({ images }: NGOLightboxClientProps) {
     // Return to auto mode after duration (if not hovering)
     manualTimeoutRef.current = setTimeout(() => {
       if (!isHovered) {
-        console.log("⏰ Manual mode timeout - Resuming auto-scroll");
         setIsManualMode(false);
       }
     }, MANUAL_MODE_DURATION);
@@ -159,8 +157,6 @@ export default function NGOLightboxClient({ images }: NGOLightboxClientProps) {
       const spacerWidth = firstItem.offsetLeft;
       container.scrollLeft = spacerWidth;
       isInitializedRef.current = true;
-
-      console.log("✅ NGO Carousel initialized - Auto-scroll will start");
     };
 
     // Initialize with a small delay to ensure DOM is ready
@@ -294,7 +290,6 @@ export default function NGOLightboxClient({ images }: NGOLightboxClientProps) {
   // =========================
 
   const handleMouseEnter = () => {
-    console.log("🖱️ Mouse entered - Pausing auto-scroll");
     setIsHovered(true);
     setIsManualMode(true);
 
@@ -306,7 +301,6 @@ export default function NGOLightboxClient({ images }: NGOLightboxClientProps) {
   };
 
   const handleMouseLeave = () => {
-    console.log("🖱️ Mouse left - Will resume auto-scroll after delay");
     setIsHovered(false);
 
     // Clear any existing timeouts
@@ -316,7 +310,6 @@ export default function NGOLightboxClient({ images }: NGOLightboxClientProps) {
 
     // Resume auto-scroll after a 1-second delay
     resumeTimeoutRef.current = setTimeout(() => {
-      console.log("▶️ Resuming auto-scroll");
       setIsManualMode(false);
     }, RESUME_DELAY);
   };

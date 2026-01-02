@@ -26,7 +26,6 @@ export default function SlotPage() {
     // Allow a small delay for form context to load from localStorage
     const timer = setTimeout(() => {
       if (!form.planSlug) {
-        console.log("[SLOT PAGE] Missing planSlug, redirecting to services");
         router.replace("/services");
         return;
       }
@@ -49,9 +48,6 @@ export default function SlotPage() {
                 : 0;
 
               if (!planPrice || planPrice === 0) {
-                console.error(
-                  `[SLOT] Failed to parse price from: "${form.planPrice}"`
-                );
                 toast.error("Invalid plan price. Please select a plan again.");
                 router.push("/services");
                 return;
@@ -78,10 +74,6 @@ export default function SlotPage() {
 
             setForm({ appointmentId: appointmentResponse.data.id });
           } catch (error: any) {
-            console.error(
-              "Failed to create appointment for existing patient:",
-              error
-            );
             toast.error("Failed to initialize appointment. Please try again.");
           }
         };
@@ -135,31 +127,11 @@ export default function SlotPage() {
         const day = String(selectedDate.getDate()).padStart(2, "0");
         const dateStr = `${year}-${month}-${day}`;
 
-        console.log("[SLOT PAGE] Fetching slots:", {
-          date: dateStr,
-          mode: backendMode,
-        });
-
         const fetchedSlots = await getAvailableSlots(dateStr, backendMode);
-
-        console.log("[SLOT PAGE] Received slots from backend:", {
-          count: fetchedSlots.length,
-          slots: fetchedSlots.map((s) => ({
-            id: s.id,
-            label: s.label,
-            mode: s.mode,
-          })),
-        });
 
         // Only set slots that are admin-created and unbooked (backend already filters this)
         setSlots(fetchedSlots);
       } catch (error: any) {
-        console.error("[SLOT PAGE] Failed to fetch slots:", error);
-        console.error("[SLOT PAGE] Error details:", {
-          message: error?.message,
-          response: error?.response?.data,
-          status: error?.response?.status,
-        });
         toast.error(
           error?.response?.data?.message || "Failed to load available slots"
         );
@@ -259,7 +231,6 @@ export default function SlotPage() {
         // Redirect to payment page
         router.push("/book/payment");
       } catch (error: any) {
-        console.error("Failed to update appointment slot:", error);
         const errorMessage =
           error?.response?.data?.message ||
           error?.message ||

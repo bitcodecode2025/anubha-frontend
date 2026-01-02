@@ -51,32 +51,14 @@ export default function PendingAppointments({
   const fetchPendingAppointments = async () => {
     try {
       setLoading(true);
-      console.log("[PENDING APPOINTMENTS] Fetching pending appointments...");
       const response = await getPendingAppointments();
-      console.log("[PENDING APPOINTMENTS] Response:", response);
 
       if (response.success && Array.isArray(response.appointments)) {
-        console.log(
-          `[PENDING APPOINTMENTS] Found ${response.appointments.length} pending appointments`
-        );
         setAppointments(response.appointments);
       } else {
-        console.warn(
-          "[PENDING APPOINTMENTS] Unexpected response format:",
-          response
-        );
         setAppointments([]);
       }
     } catch (error: any) {
-      console.error(
-        "[PENDING APPOINTMENTS] Failed to fetch pending appointments:",
-        error
-      );
-      console.error("[PENDING APPOINTMENTS] Error details:", {
-        message: error?.message,
-        response: error?.response?.data,
-        status: error?.response?.status,
-      });
       toast.error(
         error?.response?.data?.message ||
           error?.message ||
@@ -93,17 +75,8 @@ export default function PendingAppointments({
       setResuming(appointment.id);
       toast.loading("Resuming booking...", { id: `resume-${appointment.id}` });
 
-      console.log("[RESUME BOOKING] Resuming appointment:", {
-        appointmentId: appointment.id,
-        bookingProgress: appointment.bookingProgress,
-        patientId: appointment.patientId,
-        slotId: appointment.slotId,
-        planSlug: appointment.planSlug,
-      });
-
       // Determine next step based on booking progress
       const nextStep = getNextStepUrl(appointment.bookingProgress);
-      console.log("[RESUME BOOKING] Next step:", nextStep);
 
       // Load appointment data into booking form context
       // Include all required fields to prevent redirects
@@ -127,15 +100,11 @@ export default function PendingAppointments({
         appointmentMode: appointmentMode, // Always valid: "IN_PERSON" or "ONLINE"
       };
 
-      console.log("[RESUME BOOKING] Updating form context with:", formData);
       setForm(formData);
 
       // Wait a bit for form context to update and persist to localStorage
       // This ensures the form data is saved before navigation
       await new Promise((resolve) => setTimeout(resolve, 300));
-
-      // Double-check form was updated
-      console.log("[RESUME BOOKING] Form updated, verifying data persisted...");
 
       // If next step is payment and we have onResumePayment handler, try to resume payment
       if (
@@ -144,12 +113,8 @@ export default function PendingAppointments({
         onResumePayment
       ) {
         try {
-          console.log("[RESUME BOOKING] Attempting to resume payment...");
           const orderResponse = await getExistingOrder(appointment.id);
           if (orderResponse.success && orderResponse.order) {
-            console.log(
-              "[RESUME BOOKING] Found existing order, resuming payment"
-            );
             toast.success("Resuming payment...", {
               id: `resume-${appointment.id}`,
             });
@@ -158,14 +123,10 @@ export default function PendingAppointments({
           }
         } catch (error) {
           // If no order exists, just continue to payment page
-          console.log(
-            "[RESUME BOOKING] No existing order, continuing to payment page"
-          );
         }
       }
 
       // Navigate to next step
-      console.log("[RESUME BOOKING] Navigating to:", nextStep);
       toast.success(
         `Continuing from ${getStepLabel(appointment.bookingProgress)}...`,
         {
@@ -176,12 +137,6 @@ export default function PendingAppointments({
       // Use replace instead of push to avoid back button issues
       router.push(nextStep);
     } catch (error: any) {
-      console.error("[RESUME BOOKING] Failed to resume booking:", error);
-      console.error("[RESUME BOOKING] Error details:", {
-        message: error?.message,
-        response: error?.response?.data,
-        status: error?.response?.status,
-      });
       toast.error(
         error?.response?.data?.error ||
           error?.response?.data?.message ||

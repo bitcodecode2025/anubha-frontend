@@ -140,7 +140,6 @@ export default function UserAppointmentDetailsPage() {
         fetchInvoice();
       }
     } catch (error: any) {
-      console.error("Failed to fetch appointment details:", error);
       toast.error(
         error?.response?.data?.message || "Failed to load appointment details"
       );
@@ -164,7 +163,6 @@ export default function UserAppointmentDetailsPage() {
         setInvoiceError(false); // Not an error - invoice just doesn't exist yet
       }
     } catch (error: any) {
-      console.error("Failed to fetch invoice:", error);
       setInvoice(null);
       // Only set error for non-404 errors
       if (error?.response?.status !== 404) {
@@ -194,7 +192,6 @@ export default function UserAppointmentDetailsPage() {
         setInvoiceError(true);
       }
     } catch (error: any) {
-      console.error("Failed to generate invoice:", error);
       toast.error(error.message || "Failed to generate invoice");
       setInvoiceError(true);
     } finally {
@@ -210,7 +207,6 @@ export default function UserAppointmentDetailsPage() {
       await downloadInvoice(invoice.invoiceNumber);
       toast.success("Invoice downloaded successfully");
     } catch (error: any) {
-      console.error("Failed to download invoice:", error);
       toast.error(error.message || "Failed to download invoice");
     } finally {
       setDownloadingInvoice(false);
@@ -231,7 +227,6 @@ export default function UserAppointmentDetailsPage() {
       window.URL.revokeObjectURL(url);
       toast.success("Image downloaded successfully");
     } catch (error: any) {
-      console.error("Failed to download image:", error);
       toast.error("Failed to download image");
     }
   }

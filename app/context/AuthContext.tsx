@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await api.post("/auth/logout");
     } catch (err) {
-      console.error("Logout error:", err);
+      // Logout error, silently continue
     }
 
     // Clear all auth-related localStorage
@@ -105,9 +105,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (status === 401) {
         setUser(null);
         localStorage.removeItem("user");
-        if (process.env.NODE_ENV === "development") {
-          console.log("[Auth] User not authenticated (401)");
-        }
       } else if (status === 400) {
         // Handle 400 - Bad request (invalid token, invalid role, etc.)
         // But check if it's actually a database error that was misclassified
@@ -116,24 +113,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           errorMessage?.includes("Can't reach")
         ) {
           // Database error misclassified as 400 - treat as server error
-          console.warn(
-            "[Auth] Database error received as 400, treating as server error"
-          );
           // Keep user logged in using localStorage fallback
           const storedUser = localStorage.getItem("user");
           if (storedUser) {
             try {
               setUser(JSON.parse(storedUser));
-              console.log(
-                "[Auth] Using stored user data due to database error"
-              );
             } catch (e) {
               localStorage.removeItem("user");
             }
           }
         } else {
           // Actual authentication/validation error
-          console.error("[Auth] Bad request (400):", errorMessage);
           // Clear potentially invalid auth data
           setUser(null);
           localStorage.removeItem("user");
@@ -141,40 +131,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (status === 500 || isDatabaseError) {
         // Server error (including database errors) - keep user logged in
         // Use stored user data as fallback
-        console.warn(
-          "[Auth] Server error (500) - keeping user logged in with stored data:",
-          {
-            status,
-            message: errorMessage,
-            errorType,
-          }
-        );
         const storedUser = localStorage.getItem("user");
         if (storedUser) {
           try {
             setUser(JSON.parse(storedUser));
-            console.log("[Auth] Using stored user data due to server error");
           } catch (e) {
             // Invalid stored user, clear it
             localStorage.removeItem("user");
             setUser(null);
           }
-        } else {
-          // No stored user, but don't clear auth state on server errors
-          // User might still be authenticated, just can't verify right now
-          console.log(
-            "[Auth] No stored user, but keeping auth state (server error)"
-          );
         }
       } else {
         // For other errors (404, etc.), try to use stored user as fallback
-        if (process.env.NODE_ENV === "development") {
-          console.error("[Auth] Failed to fetch user:", {
-            status,
-            message: errorMessage,
-            error: err,
-          });
-        }
         const storedUser = localStorage.getItem("user");
         if (storedUser) {
           try {
@@ -198,9 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // First, try to fetch from backend
         await fetchUser();
       } catch (err) {
-        if (process.env.NODE_ENV === "development") {
-          console.error("[Auth] Load error:", err);
-        }
+        // Load error, silently continue
       }
       setLoading(false);
     };

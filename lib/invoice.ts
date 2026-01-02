@@ -35,11 +35,6 @@ export async function getInvoiceByAppointmentId(
       };
     }
 
-    // Log unexpected errors only
-    if (error?.response?.status !== 404) {
-      console.error("[INVOICE] Error fetching invoice:", error);
-    }
-
     return {
       success: false,
       error: error?.response?.data?.error || "Failed to fetch invoice",
@@ -65,7 +60,6 @@ export async function getInvoiceDownloadUrl(
 
     throw new Error("Invoice URL not found");
   } catch (error: any) {
-    console.error("[INVOICE] Error fetching invoice URL:", error);
     throw new Error(
       error?.response?.data?.error || "Failed to fetch invoice URL"
     );
@@ -84,7 +78,6 @@ export async function generateInvoice(
     );
     return res.data;
   } catch (error: any) {
-    console.error("[INVOICE] Error generating invoice:", error);
     return {
       success: false,
       error:
@@ -121,7 +114,6 @@ export async function downloadInvoice(
       document.body.removeChild(link);
     }
   } catch (error: any) {
-    console.error("[INVOICE] Error downloading invoice:", error);
     throw new Error(
       error?.response?.data?.error || "Failed to download invoice"
     );

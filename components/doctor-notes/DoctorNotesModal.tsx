@@ -153,7 +153,6 @@ export default function DoctorNotesModal({
         setSelectedFields(initialSelected);
       }
     } catch (error: any) {
-      console.error("Failed to load field groups:", error);
       toast.error("Failed to load form fields");
     } finally {
       setLoading(false);
@@ -171,7 +170,6 @@ export default function DoctorNotesModal({
       const response = await searchDoctorFields(query);
       setSearchResults(response.fields);
     } catch (error: any) {
-      console.error("Failed to search fields:", error);
       toast.error("Failed to search fields");
     } finally {
       setSearching(false);
@@ -260,7 +258,6 @@ export default function DoctorNotesModal({
       if (onSave) onSave();
       onClose();
     } catch (error: any) {
-      console.error("Failed to save doctor notes:", error);
       toast.error(
         error?.response?.data?.error || "Failed to save doctor notes"
       );

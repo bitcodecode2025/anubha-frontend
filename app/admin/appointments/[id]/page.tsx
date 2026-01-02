@@ -123,15 +123,9 @@ export default function AppointmentDetailsPage() {
   async function fetchAppointmentDetails() {
     setLoadingData(true);
     try {
-      console.log("[APPOINTMENT DETAILS] Fetching appointment:", appointmentId);
       const response = await getAppointmentDetails(appointmentId);
-      console.log(
-        "[APPOINTMENT DETAILS] Appointment loaded:",
-        response.appointment
-      );
       setAppointment(response.appointment);
     } catch (error: any) {
-      console.error("[APPOINTMENT DETAILS] Failed to fetch:", error);
       toast.error(
         error?.response?.data?.message || "Failed to load appointment details"
       );
@@ -144,34 +138,13 @@ export default function AppointmentDetailsPage() {
   async function fetchDoctorNotes() {
     setLoadingNotes(true);
     try {
-      console.log(
-        "[APPOINTMENT DETAILS] Fetching doctor notes for:",
-        appointmentId
-      );
       const response = await getDoctorNotes(appointmentId);
       if (response.success && response.doctorNotes) {
-        console.log(
-          "[APPOINTMENT DETAILS] Doctor notes found:",
-          response.doctorNotes
-        );
-        console.log(
-          "[APPOINTMENT DETAILS] Attachments:",
-          response.doctorNotes.attachments
-        );
-        console.log(
-          "[APPOINTMENT DETAILS] Attachments count:",
-          response.doctorNotes.attachments?.length || 0
-        );
         setDoctorNotes(response.doctorNotes);
       } else {
-        console.log("[APPOINTMENT DETAILS] No doctor notes found");
         setDoctorNotes(null);
       }
     } catch (error: any) {
-      console.error(
-        "[APPOINTMENT DETAILS] Failed to fetch doctor notes:",
-        error
-      );
       setDoctorNotes(null);
     } finally {
       setLoadingNotes(false);
@@ -201,7 +174,6 @@ export default function AppointmentDetailsPage() {
       window.URL.revokeObjectURL(url);
       toast.success("Image downloaded successfully");
     } catch (error: any) {
-      console.error("Failed to download image:", error);
       toast.error("Failed to download image");
     }
   }
@@ -694,7 +666,6 @@ export default function AppointmentDetailsPage() {
                     setDoctorNotes(response.doctorNotes);
                   }
                 } catch (error) {
-                  console.error("Failed to refresh doctor notes:", error);
                 }
               }}
               onEdit={() =>

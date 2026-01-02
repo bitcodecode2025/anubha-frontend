@@ -168,10 +168,6 @@ export async function getSlotDateRange(): Promise<
     const res = await api.get<SlotDateRangeResponse>("slots/admin/date-range");
     return res.data.data;
   } catch (error: any) {
-    console.error(
-      "[API] Get slot date range error:",
-      error?.response?.data || error?.message
-    );
     // Return default if error
     return {
       hasSlots: false,

@@ -79,23 +79,16 @@ export default function DoctorNotesForm({
   async function loadExistingNotes() {
     setLoading(true);
     try {
-      console.log(
-        "[FORM] Loading existing notes for appointment:",
-        appointmentId
-      );
       const response = await getDoctorNotes(appointmentId);
       if (response.success && response.doctorNotes?.formData) {
-        console.log("[FORM] Existing notes found in database");
         const loadedData = response.doctorNotes.formData;
         // Store original for change detection
         setOriginalFormData(JSON.parse(JSON.stringify(loadedData))); // Deep copy
         setHasExistingNotes(true);
       } else {
-        console.log("[FORM] No existing notes found in database");
         setHasExistingNotes(false);
       }
     } catch (error: any) {
-      console.error("[FORM] Failed to load doctor notes:", error);
       // Don't show error toast - it's okay if no notes exist yet
       setHasExistingNotes(false);
     } finally {
@@ -220,17 +213,9 @@ export default function DoctorNotesForm({
         Object.keys(changedFields).length > 0 &&
         Object.keys(changedFields).length < Object.keys(formData).length;
 
-      console.log("[FORM] Submitting doctor notes");
-      console.log("[FORM] Has existing notes:", hasExistingNotes);
-      console.log("[FORM] Is partial update:", isPartialUpdate);
-      if (changedFields) {
-        console.log("[FORM] Changed fields:", Object.keys(changedFields));
-      }
-
       let response;
       if (isPartialUpdate) {
         // Use PATCH for partial updates (fast)
-        console.log("[FORM] Using PATCH for partial update");
         response = await updateDoctorNotes(
           appointmentId,
           changedFields,
@@ -238,7 +223,6 @@ export default function DoctorNotesForm({
         );
       } else {
         // Use POST for full submission (new notes or full update)
-        console.log("[FORM] Using POST for full submission");
         response = await saveDoctorNotes({
           appointmentId,
           formData,
@@ -252,11 +236,7 @@ export default function DoctorNotesForm({
       // Clear localStorage after successful submission (only if not a draft)
       if (!isDraft) {
         clearFormData();
-        console.log("[FORM] Cleared localStorage after successful submission");
       }
-
-      const duration = saveStartTime ? Date.now() - saveStartTime : 0;
-      console.log(`[FORM] Save completed in ${duration}ms`);
 
       toast.success(
         isDraft
@@ -268,17 +248,6 @@ export default function DoctorNotesForm({
       if (onSave) onSave();
     } catch (error: any) {
       const duration = saveStartTime ? Date.now() - saveStartTime : 0;
-      
-      // Log full error details for debugging
-      console.error(`[FORM] Failed to save doctor notes (${duration}ms):`, {
-        error,
-        errorType: error?.constructor?.name,
-        errorMessage: error?.message,
-        errorResponse: error?.response?.data,
-        errorStatus: error?.response?.status,
-        errorStatusText: error?.response?.statusText,
-        errorStack: error?.stack,
-      });
       
       // Extract error message from various possible formats
       let errorMessage = "Failed to save doctor notes";
@@ -3398,8 +3367,6 @@ function DietPrescribedSection({
         });
       }
     } catch (error: any) {
-      console.error("PDF upload error:", error);
-      
       // Handle different types of errors
       let errorMessage = "Failed to upload PDF files. Please try again.";
       

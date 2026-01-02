@@ -116,9 +116,6 @@ export default function PlanCard({
           planPrice = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : 0;
 
           if (!planPrice || planPrice === 0) {
-            console.error(
-              `[PlanCard] Failed to parse price from: "${pendingBooking.planPrice}"`
-            );
             toast.error("Invalid plan price. Please try again.");
             return;
           }
@@ -155,7 +152,6 @@ export default function PlanCard({
           router.push("/book/recall");
         }
       } catch (error: any) {
-        console.error("Failed to create appointment:", error);
         toast.error(
           error?.response?.data?.message ||
             "Failed to create appointment. Please try again."

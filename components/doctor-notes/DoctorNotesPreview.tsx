@@ -56,9 +56,6 @@ function PDFAttachmentList({
   onAttachmentDeleted?: () => void;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  
-  console.log("[PDFAttachmentList] Received attachments:", attachments);
-  console.log("[PDFAttachmentList] Attachments count:", attachments?.length || 0);
 
   const handleDelete = async (attachmentId: string, fileName: string) => {
     if (!confirm(`Are you sure you want to delete "${fileName}"?`)) {
@@ -80,7 +77,6 @@ function PDFAttachmentList({
         throw new Error(result.error || "Failed to delete PDF");
       }
     } catch (error: any) {
-      console.error("Delete PDF error:", error);
       toast.error(
         error?.response?.data?.error ||
           error?.message ||
@@ -297,17 +293,11 @@ export default function DoctorNotesPreview({
   attachments = [],
   onAttachmentDeleted,
 }: DoctorNotesPreviewProps) {
-  // Debug logging
-  console.log("[DoctorNotesPreview] Received attachments:", attachments);
-  console.log("[DoctorNotesPreview] Attachments count:", attachments?.length || 0);
-  console.log("[DoctorNotesPreview] Attachments array:", JSON.stringify(attachments, null, 2));
-
   // Ensure attachments is always an array
   const apiAttachments = Array.isArray(attachments) ? attachments : [];
   
   // Extract uploadedPDFs from formData.dietPrescribed.uploadedPDFs
   const formDataUploadedPDFs = (formData.dietPrescribed as any)?.uploadedPDFs || [];
-  console.log("[DoctorNotesPreview] FormData uploadedPDFs:", formDataUploadedPDFs);
   
   // Merge API attachments with formData uploadedPDFs
   // Remove duplicates based on URL or ID
@@ -340,8 +330,6 @@ export default function DoctorNotesPreview({
   });
   
   const safeAttachments = allAttachments;
-  console.log("[DoctorNotesPreview] Combined attachments:", safeAttachments);
-  console.log("[DoctorNotesPreview] Total attachments count:", safeAttachments.length);
 
   return (
     <motion.div
@@ -2423,8 +2411,6 @@ export default function DoctorNotesPreview({
                           att.section === "DietPrescribed" &&
                           att.fileCategory === "DIET_CHART"
                       );
-                      
-                      console.log("[DoctorNotesPreview] Filtered diet chart attachments:", dietChartAttachments);
 
                       // Fallback to single file from formData for backward compatibility
                       // Note: These fields may not exist in the TypeScript interface but could be in the data

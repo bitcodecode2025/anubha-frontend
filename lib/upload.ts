@@ -33,11 +33,6 @@ export async function uploadFiles(files: File[]): Promise<UploadedFile[]> {
 
     return res.data.files || [];
   } catch (error: any) {
-    console.error("[API] Upload files error:", {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-    });
     throw error;
   }
 }
@@ -49,11 +44,6 @@ export async function deleteFile(fileId: string): Promise<void> {
     }
     await api.delete(`patients/file/${fileId}`);
   } catch (error: any) {
-    console.error("[API] Delete file error:", {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-    });
     throw error;
   }
 }
@@ -71,11 +61,6 @@ export async function linkFilesToPatient(
     }
     await api.patch(`patients/${patientId}/files`, { fileIds });
   } catch (error: any) {
-    console.error("[API] Link files to patient error:", {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-    });
     throw error;
   }
 }

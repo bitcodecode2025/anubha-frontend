@@ -26,11 +26,6 @@ export async function getAvailableSlots(
     });
     return res.data.data || [];
   } catch (error: any) {
-    console.error("[API] Get available slots error:", {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-    });
     throw error;
   }
 }

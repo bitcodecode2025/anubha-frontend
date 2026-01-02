@@ -15,13 +15,11 @@ export default function TestPage() {
       };
       try {
         const res: response = await apiInstance.get("/health");
-        console.log("Backend Response:", res.data);
 
         const data: string = res.data.message;
         // Set data to UI state
         setBackendData(data.toLocaleUpperCase());
       } catch (err: any) {
-        console.error("Backend Error:", err.response?.data || err.message);
         setBackendData("Error fetching data");
       }
     }

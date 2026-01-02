@@ -16,10 +16,6 @@ const api = axios.create({
   },
 });
 
-// Log API base URL in development
-if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
-  console.log("[API] Base URL:", API_BASE_URL);
-}
 
 // Track retry attempts to prevent infinite loops
 const retryAttempts = new Map<string, number>();
@@ -97,23 +93,6 @@ api.interceptors.response.use(
         }
       }
 
-      // Log unexpected errors
-      if (status >= 500) {
-        console.error("Server error:", error);
-      }
-    } else if (axiosError.request) {
-      // Request was made but no response received
-      // Don't log timeout errors as they're handled by individual functions
-      if (
-        axiosError.message &&
-        !axiosError.message.includes("Network Error") &&
-        !axiosError.message.includes("timeout")
-      ) {
-        console.error("Network error:", axiosError.message);
-      }
-    } else {
-      // Something else happened
-      console.error("Error:", axiosError.message);
     }
 
     return Promise.reject(error);

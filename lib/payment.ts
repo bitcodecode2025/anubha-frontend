@@ -50,11 +50,6 @@ export async function createOrder(data: {
       };
     }
 
-    console.log(
-      "[API] Creating payment order for appointment:",
-      data.appointmentId
-    );
-
     const res = await api.post<CreateOrderResponse>("payment/order", {
       appointmentId: data.appointmentId,
     });
@@ -66,19 +61,8 @@ export async function createOrder(data: {
       };
     }
 
-    console.log("[API] Order created successfully:", {
-      orderId: res.data.order.id,
-      amount: res.data.order.amount,
-    });
-
     return res.data;
   } catch (error: any) {
-    console.error("[API] Order creation error:", {
-      message: error?.message,
-      status: error?.response?.status,
-      data: error?.response?.data,
-    });
-
     // Extract error message from response
     const errorMessage =
       error?.response?.data?.error ||
@@ -108,8 +92,6 @@ export async function getExistingOrder(
       };
     }
 
-    console.log("[API] Getting existing order for appointment:", appointmentId);
-
     const res = await api.get<GetExistingOrderResponse>(
       `payment/existing-order/${appointmentId}`
     );
@@ -121,19 +103,8 @@ export async function getExistingOrder(
       };
     }
 
-    console.log("[API] Existing order found:", {
-      orderId: res.data.order.id,
-      amount: res.data.order.amount,
-    });
-
     return res.data;
   } catch (error: any) {
-    console.error("[API] Get existing order error:", {
-      message: error?.message,
-      status: error?.response?.status,
-      data: error?.response?.data,
-    });
-
     // Check if backend says we should create new order (expired/invalid order)
     const shouldCreateNew = error?.response?.data?.shouldCreateNew === true;
     const expired = error?.response?.data?.expired === true;
@@ -170,12 +141,6 @@ export async function verifyPayment(data: {
       };
     }
 
-    console.log("[API] Verifying payment:", {
-      orderId: data.orderId,
-      paymentId: data.paymentId,
-      hasSignature: !!data.signature,
-    });
-
     const res = await api.post<VerifyPaymentResponse>("payment/verify", {
       orderId: data.orderId,
       paymentId: data.paymentId,
@@ -189,17 +154,8 @@ export async function verifyPayment(data: {
       };
     }
 
-    console.log("[API] Payment verified successfully");
-
     return res.data;
   } catch (error: any) {
-    console.error("[API] Payment verification error:", {
-      message: error?.message,
-      status: error?.response?.status,
-      data: error?.response?.data,
-      code: error?.code,
-    });
-
     // CRITICAL: Detect timeout errors specifically
     // Timeout means verification is pending - webhook may still process it
     const isTimeout =

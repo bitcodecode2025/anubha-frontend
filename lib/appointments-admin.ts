@@ -134,7 +134,6 @@ export async function getAdminAppointments(params: {
     });
     return res.data;
   } catch (error: any) {
-    console.error("Failed to fetch appointments:", error);
     throw error;
   }
 }
@@ -148,7 +147,6 @@ export async function getAppointmentDetails(
     );
     return res.data;
   } catch (error: any) {
-    console.error("Failed to fetch appointment details:", error);
     throw error;
   }
 }
@@ -164,7 +162,6 @@ export async function updateAppointmentStatus(
     );
     return res.data;
   } catch (error: any) {
-    console.error("Failed to update appointment status:", error);
     throw error;
   }
 }
@@ -208,7 +205,6 @@ export async function deleteAppointment(
       return res.data;
     }
   } catch (error: any) {
-    console.error("Failed to delete appointment:", error);
     throw error;
   }
 }

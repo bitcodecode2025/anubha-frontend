@@ -31,10 +31,6 @@ export async function sendRegisterOtp(data: { name: string; phone: string }) {
     const response = await api.post("auth/register/send-otp", data);
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Send register OTP error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -52,10 +48,6 @@ export async function verifyRegisterOtp(data: {
     const response = await api.post("auth/register/verify-otp", data);
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Verify register OTP error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -69,10 +61,6 @@ export async function sendLoginOtp(data: { phone: string }) {
     const response = await api.post("auth/login/send-otp", data);
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Send login OTP error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -87,19 +75,11 @@ export async function verifyLoginOtp(data: { phone: string; otp: string }) {
       await api.post<VerifyOtpResponse>("auth/login/verify-otp", data)
     ).data;
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("OTP verify response:", response);
-    }
-
     if (!response.user && response.owner) {
       response.user = response.owner;
     }
     return response;
   } catch (error: any) {
-    console.error(
-      "[API] Verify login OTP error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -109,10 +89,6 @@ export async function getMe() {
     const response = await api.get("auth/me");
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Get me error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -136,10 +112,6 @@ export async function sendLinkPhoneEmailOtp(data: {
         "Request timed out. This may take longer due to external service delays. Please try again."
       );
     }
-    console.error(
-      "[API] Send link phone email OTP error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -156,10 +128,6 @@ export async function verifyLinkPhoneEmailOtp(data: {
     const response = await api.post("auth/link-phone/verify-email-otp", data);
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Verify link phone email OTP error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -180,10 +148,6 @@ export async function sendAddEmailOtp(data: { email: string }) {
         "Request timed out. This may take longer due to external service delays. Please try again."
       );
     }
-    console.error(
-      "[API] Send add email OTP error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -196,10 +160,6 @@ export async function verifyAddEmailOtp(data: { email: string; otp: string }) {
     const response = await api.post("auth/add-email/verify-otp", data);
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Verify add email OTP error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -225,10 +185,6 @@ export async function signupInitiate(data: {
         "Request timed out. This may take longer due to external service delays. Please try again."
       );
     }
-    console.error(
-      "[API] Signup Initiate Error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -257,10 +213,6 @@ export async function signupComplete(data: {
     );
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Signup Complete Error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -308,10 +260,6 @@ export async function loginComplete(data: {
     const response = await api.post("auth/login/complete", data);
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Login Complete Error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }

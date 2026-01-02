@@ -74,7 +74,6 @@ export default function EditSlotsPage() {
       const data = await getSlotDateRange();
       setSlotDateRange(data);
     } catch (error: any) {
-      console.error("Failed to load slot date range:", error);
       // Don't show toast for this, just log it
       setSlotDateRange({
         hasSlots: false,
@@ -92,7 +91,6 @@ export default function EditSlotsPage() {
       const data = await getDayOffs();
       setDayOffs(data);
     } catch (error: any) {
-      console.error("Failed to load day offs:", error);
       toast.error(error?.response?.data?.message || "Failed to load day offs");
     } finally {
       setLoadingDayOffs(false);
@@ -113,7 +111,6 @@ export default function EditSlotsPage() {
         existingSlotWarnings: preview.existingSlotWarnings,
       });
     } catch (error: any) {
-      console.error("Failed to load slot preview:", error);
       toast.error(
         error?.response?.data?.message || "Failed to load slot preview"
       );
@@ -168,7 +165,6 @@ export default function EditSlotsPage() {
       const data = await getExistingSlots(startDate, endDate);
       setExistingSlots(data);
     } catch (error: any) {
-      console.error("Failed to load existing slots:", error);
       // Don't show toast for this, just log it
     } finally {
       setLoadingExistingSlots(false);
@@ -257,7 +253,6 @@ export default function EditSlotsPage() {
       // Reload slot date range to reflect new slots
       await loadSlotDateRange();
     } catch (error: any) {
-      console.error("Failed to create slots:", error);
       const errorMsg =
         error?.response?.data?.message || "Failed to create slots";
       toast.error(errorMsg);
@@ -332,7 +327,6 @@ export default function EditSlotsPage() {
       setDayOffReason("");
       await loadDayOffs();
     } catch (error: any) {
-      console.error("Failed to add day off:", error);
       const reason = error?.response?.data?.message || error?.message;
       const errorMsg = reason
         ? `Failed to mark this day off: ${reason}`
@@ -360,7 +354,6 @@ export default function EditSlotsPage() {
 
       await loadDayOffs();
     } catch (error: any) {
-      console.error("Failed to remove day off:", error);
       toast.error(error?.response?.data?.message || "Failed to remove day off");
     } finally {
       setRemovingDayOffId(null);
