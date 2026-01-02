@@ -127,6 +127,14 @@ export function DoctorNotesProvider({
   );
 
   // Debounced auto-save
+  // Use a ref to always get the latest formData without causing re-renders
+  const formDataRef = useRef(formData);
+
+  // Update ref whenever formData changes
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
   useEffect(() => {
     if (!hasUnsavedChanges || !appointmentId) return;
 
@@ -139,7 +147,8 @@ export function DoctorNotesProvider({
 
     // Set new timeout
     autoSaveTimeoutRef.current = setTimeout(() => {
-      saveToLocalStorage(formData);
+      // Use ref to get latest formData without causing dependency issues
+      saveToLocalStorage(formDataRef.current);
       setHasUnsavedChanges(false);
     }, AUTO_SAVE_DELAY);
 
@@ -149,7 +158,7 @@ export function DoctorNotesProvider({
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [formData, hasUnsavedChanges, appointmentId, saveToLocalStorage]);
+  }, [hasUnsavedChanges, appointmentId, saveToLocalStorage]); // Removed formData from dependencies
 
   // Update form data
   const updateFormData = useCallback((path: string[], value: any) => {

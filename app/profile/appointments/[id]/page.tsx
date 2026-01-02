@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Download,
   Receipt,
+  FilePlus,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,6 +32,7 @@ import BabySolidPlanOptions from "@/components/appointments/BabySolidPlanOptions
 import {
   getInvoiceByAppointmentId,
   downloadInvoice,
+  generateInvoice,
   type Invoice,
 } from "@/lib/invoice";
 
@@ -105,6 +107,8 @@ export default function UserAppointmentDetailsPage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
+  const [invoiceError, setInvoiceError] = useState(false);
 
   const appointmentId = params.id as string;
 
@@ -117,10 +121,13 @@ export default function UserAppointmentDetailsPage() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (user && appointmentId) {
-      fetchAppointmentDetails();
-    }
-  }, [appointmentId, user]);
+    // CRITICAL: Do NOT call APIs while auth is loading or user is null
+    if (authLoading) return; // Wait for auth to resolve
+    if (!user) return; // Do not call APIs if user is null
+    if (!appointmentId) return; // Need appointment ID
+
+    fetchAppointmentDetails();
+  }, [appointmentId, user, authLoading]);
 
   async function fetchAppointmentDetails() {
     setLoading(true);
@@ -145,16 +152,53 @@ export default function UserAppointmentDetailsPage() {
 
   async function fetchInvoice() {
     setLoadingInvoice(true);
+    setInvoiceError(false);
     try {
       const response = await getInvoiceByAppointmentId(appointmentId);
       if (response.success && response.invoice) {
         setInvoice(response.invoice);
+        setInvoiceError(false);
+      } else {
+        // Invoice not found - this is expected, user can generate it
+        setInvoice(null);
+        setInvoiceError(false); // Not an error - invoice just doesn't exist yet
       }
     } catch (error: any) {
       console.error("Failed to fetch invoice:", error);
-      // Don't show error toast - invoice may not exist yet
+      setInvoice(null);
+      // Only set error for non-404 errors
+      if (error?.response?.status !== 404) {
+        setInvoiceError(true);
+      } else {
+        setInvoiceError(false); // 404 means invoice doesn't exist yet
+      }
     } finally {
       setLoadingInvoice(false);
+    }
+  }
+
+  async function handleGenerateInvoice() {
+    if (!appointmentId) return;
+
+    setGeneratingInvoice(true);
+    setInvoiceError(false);
+    try {
+      const response = await generateInvoice(appointmentId);
+      if (response.success && response.invoice) {
+        setInvoice(response.invoice);
+        toast.success("Invoice generated successfully");
+        // Refresh invoice to get full details
+        await fetchInvoice();
+      } else {
+        toast.error(response.error || "Failed to generate invoice");
+        setInvoiceError(true);
+      }
+    } catch (error: any) {
+      console.error("Failed to generate invoice:", error);
+      toast.error(error.message || "Failed to generate invoice");
+      setInvoiceError(true);
+    } finally {
+      setGeneratingInvoice(false);
     }
   }
 
@@ -170,6 +214,25 @@ export default function UserAppointmentDetailsPage() {
       toast.error(error.message || "Failed to download invoice");
     } finally {
       setDownloadingInvoice(false);
+    }
+  }
+
+  async function handleDownloadImage(imageUrl: string, fileName: string) {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success("Image downloaded successfully");
+    } catch (error: any) {
+      console.error("Failed to download image:", error);
+      toast.error("Failed to download image");
     }
   }
 
@@ -288,52 +351,52 @@ export default function UserAppointmentDetailsPage() {
             Patient Details
           </h3>
           <div className="bg-slate-50 rounded-lg p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Name</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.name}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Phone</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.phone}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Email</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words break-all">
                   {appointment.patient.email}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0 flex-shrink-0">
                 <div className="text-sm text-slate-600 mb-1">Age</div>
                 <div className="font-medium text-slate-900">
                   {appointment.patient.age} years
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Gender</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.gender}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Weight</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.weight} kg
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Height</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.height} cm
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Date of Birth</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {new Date(appointment.patient.dateOfBirth).toLocaleDateString(
                     "en-IN"
                   )}
@@ -474,15 +537,58 @@ export default function UserAppointmentDetailsPage() {
                     ) : (
                       <>
                         <Download className="w-4 h-4" />
-                        Download Invoice
+                        Get Invoice
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : invoiceError ? (
+                <div className="text-center py-8">
+                  <div className="text-slate-600 mb-4">
+                    Invoice generation failed. Please try again or contact
+                    support.
+                  </div>
+                  <button
+                    onClick={handleGenerateInvoice}
+                    disabled={generatingInvoice}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generatingInvoice ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FilePlus className="w-4 h-4" />
+                        Try Again
                       </>
                     )}
                   </button>
                 </div>
               ) : (
-                <div className="text-center py-8 text-slate-500">
-                  Invoice is being generated. Please refresh the page in a
-                  moment.
+                <div className="text-center py-8">
+                  <div className="text-slate-600 mb-4">
+                    Invoice not generated yet. Click the button below to
+                    generate your invoice.
+                  </div>
+                  <button
+                    onClick={handleGenerateInvoice}
+                    disabled={generatingInvoice}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generatingInvoice ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Generating Invoice...
+                      </>
+                    ) : (
+                      <>
+                        <FilePlus className="w-4 h-4" />
+                        Generate Invoice
+                      </>
+                    )}
+                  </button>
                 </div>
               )}
             </div>
@@ -521,6 +627,16 @@ export default function UserAppointmentDetailsPage() {
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded mb-2 flex items-center justify-center transition-colors">
                         <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadImage(file.url, file.fileName);
+                        }}
+                        className="absolute bottom-2 right-2 p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Download image"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
                     </div>
                   ) : (
                     <div className="w-full h-48 bg-slate-200 rounded mb-2 flex items-center justify-center">

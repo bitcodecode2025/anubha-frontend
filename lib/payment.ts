@@ -18,6 +18,7 @@ export interface VerifyPaymentResponse {
   message?: string;
   alreadyConfirmed?: boolean;
   error?: string;
+  timeout?: boolean; // Indicates if error was due to timeout (webhook may still process payment)
 }
 
 export interface GetExistingOrderResponse {
@@ -31,6 +32,8 @@ export interface GetExistingOrderResponse {
   };
   appointmentId?: string;
   error?: string;
+  shouldCreateNew?: boolean; // Backend signals: create new order (expired/invalid)
+  expired?: boolean; // Backend signals: order expired
 }
 
 /**
@@ -131,6 +134,10 @@ export async function getExistingOrder(
       data: error?.response?.data,
     });
 
+    // Check if backend says we should create new order (expired/invalid order)
+    const shouldCreateNew = error?.response?.data?.shouldCreateNew === true;
+    const expired = error?.response?.data?.expired === true;
+
     // Extract error message from response
     const errorMessage =
       error?.response?.data?.error ||
@@ -141,6 +148,8 @@ export async function getExistingOrder(
     return {
       success: false,
       error: errorMessage,
+      shouldCreateNew, // Pass this flag to frontend
+      expired, // Pass this flag to frontend
     };
   }
 }
@@ -188,7 +197,25 @@ export async function verifyPayment(data: {
       message: error?.message,
       status: error?.response?.status,
       data: error?.response?.data,
+      code: error?.code,
     });
+
+    // CRITICAL: Detect timeout errors specifically
+    // Timeout means verification is pending - webhook may still process it
+    const isTimeout =
+      error?.code === "ECONNABORTED" ||
+      error?.message?.includes("timeout") ||
+      error?.message?.includes("TIMEOUT") ||
+      error?.response?.status === 503;
+
+    if (isTimeout) {
+      // Timeout is not a failure - webhook may still process payment
+      return {
+        success: false,
+        error: "VERIFICATION_TIMEOUT", // Special error code for timeout
+        timeout: true,
+      };
+    }
 
     // Extract error message from response
     const errorMessage =
@@ -200,6 +227,7 @@ export async function verifyPayment(data: {
     return {
       success: false,
       error: errorMessage,
+      timeout: false,
     };
   }
 }

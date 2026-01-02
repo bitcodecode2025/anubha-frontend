@@ -8,65 +8,31 @@ import { useAuth } from "@/app/context/AuthContext";
 import {
   User,
   Phone,
+  Mail,
   Shield,
   LogOut,
   Loader2,
   Calendar,
   Clock,
-  MapPin,
-  Video,
-  Eye,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  RefreshCw,
   ArrowRight,
-  ClipboardList,
-  CreditCard,
-  Trash2,
+  MapPin,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import {
-  getMyAppointments,
-  getAppointmentsByPatient,
-  type UserAppointment,
-} from "@/lib/appointments-user";
-import {
-  getPendingAppointments,
-  getNextStepUrl,
-  getStepLabel,
-  deletePendingAppointment,
-  type PendingAppointment,
-} from "@/lib/pending-appointments";
+// Removed appointments imports - now handled in separate pages
 import {
   getMyPatients,
   getPatientDetails,
   type Patient,
   type PatientDetails,
 } from "@/lib/patient";
-import { useBookingForm } from "@/app/book/context/BookingFormContext";
-import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
-import SuccessNotification from "@/components/admin/SuccessNotification";
 import { ChevronDown } from "lucide-react";
-import BabySolidPlanOptions from "@/components/appointments/BabySolidPlanOptions";
+import { sendAddEmailOtp, verifyAddEmailOtp } from "@/lib/auth";
+import OtpInput from "@/components/auth/OtpInput";
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, logout, loading, loggingOut } = useAuth();
-  const { setForm } = useBookingForm();
-  const [appointments, setAppointments] = useState<UserAppointment[]>([]);
-  const [loadingAppointments, setLoadingAppointments] = useState(true);
-  const [pendingAppointments, setPendingAppointments] = useState<
-    PendingAppointment[]
-  >([]);
-  const [loadingPending, setLoadingPending] = useState(true);
-  const [resuming, setResuming] = useState<string | null>(null);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(
-    null
-  );
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+  // Removed appointments and pending appointments state - now handled in separate pages
 
   // Profile switching state
   const [selectedProfileType, setSelectedProfileType] = useState<
@@ -81,41 +47,36 @@ export default function ProfilePage() {
   const [loadingPatients, setLoadingPatients] = useState(false);
   const [loadingPatientDetails, setLoadingPatientDetails] = useState(false);
 
+  // Admin data state (fetched from Admin model)
+  const [adminData, setAdminData] = useState<{
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    role: "ADMIN";
+  } | null>(null);
+  const [loadingAdminData, setLoadingAdminData] = useState(false);
+
+  // Add Email state
+  const [showAddEmail, setShowAddEmail] = useState(false);
+  const [emailToAdd, setEmailToAdd] = useState("");
+  const [emailOtp, setEmailOtp] = useState("");
+  const [sendingEmailOtp, setSendingEmailOtp] = useState(false);
+  const [verifyingEmailOtp, setVerifyingEmailOtp] = useState(false);
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtpError, setEmailOtpError] = useState("");
+  const [emailResendCooldown, setEmailResendCooldown] = useState(0);
+
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
+    // Do NOT redirect while auth is loading
+    if (loading) return;
+    // Only redirect after auth state is fully resolved
+    if (!user) {
+      router.replace("/login");
     }
   }, [user, loading, router]);
 
-  const fetchAppointments = useCallback(async () => {
-    setLoadingAppointments(true);
-    try {
-      const response = await getMyAppointments();
-      setAppointments(response.appointments);
-    } catch (error: any) {
-      console.error("Failed to fetch appointments:", error);
-      toast.error("Failed to load appointments");
-    } finally {
-      setLoadingAppointments(false);
-    }
-  }, []);
-
-  const fetchPendingAppointments = useCallback(async (patientId?: string) => {
-    setLoadingPending(true);
-    try {
-      const response = await getPendingAppointments(patientId);
-      if (response.success && Array.isArray(response.appointments)) {
-        setPendingAppointments(response.appointments);
-      } else {
-        setPendingAppointments([]);
-      }
-    } catch (error: any) {
-      console.error("Failed to fetch pending appointments:", error);
-      setPendingAppointments([]);
-    } finally {
-      setLoadingPending(false);
-    }
-  }, []);
+  // Removed fetchAppointments and fetchPendingAppointments - now handled in separate pages
 
   const fetchPatients = useCallback(async () => {
     setLoadingPatients(true);
@@ -144,25 +105,7 @@ export default function ProfilePage() {
     }
   }, []);
 
-  const fetchPatientAppointments = useCallback(
-    async (patientId: string) => {
-      setLoadingAppointments(true);
-      try {
-        const response = await getAppointmentsByPatient(patientId);
-        setAppointments(response.appointments);
-        // Also fetch pending appointments for this patient
-        await fetchPendingAppointments(patientId);
-      } catch (error: any) {
-        console.error("Failed to fetch patient appointments:", error);
-        toast.error("Failed to load appointments");
-        setAppointments([]);
-        setPendingAppointments([]);
-      } finally {
-        setLoadingAppointments(false);
-      }
-    },
-    [fetchPendingAppointments]
-  );
+  // Removed fetchPatientAppointments - now handled in separate pages
 
   const handleProfileChange = useCallback(
     (profileType: "self" | "patient", patientId?: string | null) => {
@@ -176,164 +119,116 @@ export default function ProfilePage() {
   );
 
   // Initial load effect - runs when user is available
+  // CRITICAL: Do NOT call APIs while auth is loading or user is null
   useEffect(() => {
-    if (user && user.role !== "ADMIN") {
-      fetchPatients();
-      fetchAppointments();
-      fetchPendingAppointments();
-    }
-  }, [user, fetchPatients, fetchAppointments, fetchPendingAppointments]);
+    if (loading) return; // Wait for auth to resolve
+    if (!user) return; // Do not call APIs if user is null
+    if (user.role === "ADMIN") return; // Admins don't need this data
+
+    fetchPatients();
+    // Removed appointments and pending appointments fetching - now in separate pages
+  }, [user, loading, fetchPatients]);
 
   // Profile switching effect - runs when profile type or patient ID changes
+  // CRITICAL: Do NOT call APIs while auth is loading or user is null
   useEffect(() => {
+    if (loading) return; // Wait for auth to resolve
+    if (!user) return; // Do not call APIs if user is null
+
     if (selectedProfileType === "patient" && selectedPatientId) {
       fetchPatientDetails(selectedPatientId);
-      fetchPatientAppointments(selectedPatientId);
-    } else if (selectedProfileType === "self" && user) {
-      fetchAppointments();
-      fetchPendingAppointments(); // No patientId = fetch all pending for user
-    } else if (selectedProfileType === "patient") {
-      // Clear appointments when switching to patient but no patient selected yet
-      setAppointments([]);
-      setPendingAppointments([]);
+      // Removed appointments fetching - now in separate pages
     }
   }, [
     selectedProfileType,
     selectedPatientId,
     user,
+    loading,
     fetchPatientDetails,
-    fetchPatientAppointments,
-    fetchAppointments,
-    fetchPendingAppointments,
   ]);
 
-  const handleResumeBooking = async (appointment: PendingAppointment) => {
-    try {
-      setResuming(appointment.id);
-      toast.loading("Resuming booking...", { id: `resume-${appointment.id}` });
-
-      const nextStep = getNextStepUrl(appointment.bookingProgress);
-
-      // Ensure appointmentMode is valid
-      const appointmentMode =
-        appointment.mode === "IN_PERSON" || appointment.mode === "ONLINE"
-          ? appointment.mode
-          : "IN_PERSON";
-
-      const formData = {
-        appointmentId: appointment.id,
-        patientId: appointment.patientId,
-        slotId: appointment.slotId || null,
-        planSlug: appointment.planSlug,
-        planName: appointment.planName,
-        planPrice: appointment.planPrice.toString(),
-        planPriceRaw: appointment.planPrice,
-        planDuration: appointment.planDuration,
-        planPackageDuration: appointment.planDuration,
-        planPackageName: appointment.planPackageName || null,
-        appointmentMode: appointmentMode,
-      };
-
-      setForm(formData);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      toast.success(
-        `Continuing from ${getStepLabel(appointment.bookingProgress)}...`,
-        {
-          id: `resume-${appointment.id}`,
-        }
-      );
-
-      router.push(nextStep);
-    } catch (error: any) {
-      console.error("Failed to resume booking:", error);
-      toast.error(
-        error?.response?.data?.error ||
-          error?.response?.data?.message ||
-          error?.message ||
-          "Failed to resume booking. Please try again.",
-        { id: `resume-${appointment.id}` }
-      );
-    } finally {
-      setResuming(null);
-    }
-  };
-
-  function openDeleteModal(appointmentId: string) {
-    setAppointmentToDelete(appointmentId);
-    setDeleteModalOpen(true);
-  }
-
-  function closeDeleteModal() {
-    if (deletingId) return; // Prevent closing while deleting
-    setDeleteModalOpen(false);
-    setAppointmentToDelete(null);
-  }
-
-  async function handleDeleteAppointment() {
-    if (!appointmentToDelete) return;
-
-    setDeletingId(appointmentToDelete);
-    try {
-      await deletePendingAppointment(appointmentToDelete);
-      setDeleteModalOpen(false);
-      setShowSuccessNotification(true);
-      // Refresh the list based on current profile context
-      if (selectedProfileType === "patient" && selectedPatientId) {
-        fetchPendingAppointments(selectedPatientId);
-      } else {
-        fetchPendingAppointments();
-      }
-    } catch (error: any) {
-      console.error("Failed to delete appointment:", error);
-      toast.error(
-        error?.response?.data?.error ||
-          error?.response?.data?.message ||
-          "Failed to delete appointment",
-        {
-          position: "top-right",
-          duration: 3000,
-        }
-      );
-    } finally {
-      setDeletingId(null);
-      setAppointmentToDelete(null);
-    }
-  }
-
-  const getProgressIcon = (progress: string | null) => {
-    switch (progress) {
-      case "USER_DETAILS":
-        return User;
-      case "RECALL":
-        return ClipboardList;
-      case "SLOT":
-        return Clock;
-      case "PAYMENT":
-        return CreditCard;
-      default:
-        return AlertCircle;
-    }
-  };
-
-  const getProgressColor = (progress: string | null) => {
-    switch (progress) {
-      case "USER_DETAILS":
-        return "bg-blue-100 text-blue-800";
-      case "RECALL":
-        return "bg-purple-100 text-purple-800";
-      case "SLOT":
-        return "bg-yellow-100 text-yellow-800";
-      case "PAYMENT":
-        return "bg-orange-100 text-orange-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+  // Removed appointment-related handlers - now handled in separate pages
 
   const handleLogout = async () => {
     await logout();
     router.push("/");
+  };
+
+  // Add Email handlers
+  const handleSendEmailOtp = async () => {
+    if (!emailToAdd.trim()) {
+      setEmailOtpError("Please enter an email address");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailToAdd.trim())) {
+      setEmailOtpError("Please enter a valid email address");
+      return;
+    }
+
+    setSendingEmailOtp(true);
+    setEmailOtpError("");
+
+    try {
+      await sendAddEmailOtp({ email: emailToAdd.trim() });
+      setEmailOtpSent(true);
+      setEmailResendCooldown(60);
+      toast.success("Verification code sent to your email");
+
+      // Start cooldown timer
+      const interval = setInterval(() => {
+        setEmailResendCooldown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message || "Failed to send verification code";
+      setEmailOtpError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setSendingEmailOtp(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    if (emailOtp.length !== 4) {
+      setEmailOtpError("Please enter the 4-digit verification code");
+      return;
+    }
+
+    setVerifyingEmailOtp(true);
+    setEmailOtpError("");
+
+    try {
+      const response = (await verifyAddEmailOtp({
+        email: emailToAdd.trim(),
+        otp: emailOtp,
+      })) as { success: boolean; user?: any; message?: string };
+
+      if (response.success && response.user) {
+        // Force refresh to get updated user data
+        window.location.reload();
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message || "Failed to verify code";
+      setEmailOtpError(errorMessage);
+      toast.error(errorMessage);
+      setEmailOtp("");
+    } finally {
+      setVerifyingEmailOtp(false);
+    }
+  };
+
+  const handleResendEmailOtp = async () => {
+    if (emailResendCooldown > 0) return;
+    await handleSendEmailOtp();
   };
 
   if (loading) {
@@ -359,7 +254,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-emerald-50/40 py-10 px-6">
+    <div className="min-h-screen bg-gradient-to-b from-white to-emerald-50/40 py-6 sm:py-10 px-4 sm:px-6">
       <div className="max-w-6xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -368,7 +263,7 @@ export default function ProfilePage() {
           className="w-full"
         >
           {/* Profile Card */}
-          <div className="p-8 rounded-3xl bg-white/30 backdrop-blur-xl shadow-2xl border border-white/40 mb-8">
+          <div className="p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl bg-white/30 backdrop-blur-xl shadow-2xl border border-white/40 mb-6 sm:mb-8">
             {/* Profile Switcher Dropdown - Only for non-admin users */}
             {user && user.role !== "ADMIN" && (
               <div className="mb-6">
@@ -429,12 +324,12 @@ export default function ProfilePage() {
                   <User className="w-12 h-12 text-white" />
                 )}
               </motion.div>
-              <h1 className="text-3xl font-bold text-emerald-800 mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-emerald-800 mb-2 break-words px-2">
                 {selectedProfileType === "patient" && selectedPatientDetails
                   ? `${selectedPatientDetails.name}'s Profile`
                   : "Your Profile"}
               </h1>
-              <p className="text-slate-600 text-sm">
+              <p className="text-slate-600 text-xs sm:text-sm px-2">
                 {selectedProfileType === "patient"
                   ? "View patient information and appointments"
                   : "Manage your account information"}
@@ -456,12 +351,12 @@ export default function ProfilePage() {
                   className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-emerald-100">
+                    <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
                       <User className="w-5 h-5 text-emerald-700" />
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <p className="text-xs text-slate-500 font-medium">Name</p>
-                      <p className="text-slate-800 font-semibold">
+                      <p className="text-slate-800 font-semibold break-words">
                         {selectedProfileType === "patient" &&
                         selectedPatientDetails
                           ? selectedPatientDetails.name
@@ -471,33 +366,204 @@ export default function ProfilePage() {
                   </div>
                 </motion.div>
 
-                {/* Phone */}
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-emerald-100">
-                      <Phone className="w-5 h-5 text-emerald-700" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-slate-500 font-medium">
-                        Phone Number
-                      </p>
-                      <p className="text-slate-800 font-semibold">
-                        +91{" "}
-                        {formatPhone(
-                          selectedProfileType === "patient" &&
-                            selectedPatientDetails
-                            ? selectedPatientDetails.phone
+                {/* Phone - Only show if phone exists (not null) */}
+                {((selectedProfileType === "self" && user.phone) ||
+                  (selectedProfileType === "patient" &&
+                    selectedPatientDetails?.phone)) && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
+                        <Phone className="w-5 h-5 text-emerald-700" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-500 font-medium">
+                          Phone Number
+                        </p>
+                        <p className="text-slate-800 font-semibold break-words min-w-0">
+                          {selectedProfileType === "patient" &&
+                          selectedPatientDetails
+                            ? `+91 ${formatPhone(selectedPatientDetails.phone)}`
                             : user.phone
-                        )}
-                      </p>
+                            ? `+91 ${formatPhone(user.phone)}`
+                            : ""}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
+                  </motion.div>
+                )}
+
+                {/* Email - Only for self profile */}
+                {selectedProfileType === "self" && user.email && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
+                        <Mail className="w-5 h-5 text-emerald-700" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-500 font-medium">
+                          Email Address
+                        </p>
+                        <p className="text-slate-800 font-semibold break-words overflow-wrap-anywhere">
+                          {user.email}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Add Email - Only for self profile when email is null */}
+                {selectedProfileType === "self" && !user.email && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
+                  >
+                    {!showAddEmail ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
+                            <Mail className="w-5 h-5 text-emerald-700" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-slate-500 font-medium">
+                              Email Address
+                            </p>
+                            <p className="text-slate-600 text-sm">
+                              No email address added
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowAddEmail(true)}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors whitespace-nowrap"
+                        >
+                          Add Email
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
+                            <Mail className="w-5 h-5 text-emerald-700" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-slate-500 font-medium mb-2">
+                              Add Email Address
+                            </p>
+                            {!emailOtpSent ? (
+                              <div className="space-y-3">
+                                <input
+                                  type="email"
+                                  value={emailToAdd}
+                                  onChange={(e) => {
+                                    setEmailToAdd(e.target.value);
+                                    setEmailOtpError("");
+                                  }}
+                                  placeholder="Enter your email address"
+                                  className="w-full px-4 py-2 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                                  disabled={sendingEmailOtp}
+                                />
+                                {emailOtpError && (
+                                  <p className="text-sm text-red-600">
+                                    {emailOtpError}
+                                  </p>
+                                )}
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={handleSendEmailOtp}
+                                    disabled={sendingEmailOtp}
+                                    className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {sendingEmailOtp ? (
+                                      <span className="flex items-center justify-center gap-2">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Sending...
+                                      </span>
+                                    ) : (
+                                      "Verify Email"
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setShowAddEmail(false);
+                                      setEmailToAdd("");
+                                      setEmailOtpError("");
+                                    }}
+                                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <p className="text-sm text-slate-600 mb-2">
+                                  Enter the 4-digit code sent to{" "}
+                                  <span className="font-semibold">
+                                    {emailToAdd}
+                                  </span>
+                                </p>
+                                <OtpInput
+                                  value={emailOtp}
+                                  onChange={(value) => {
+                                    setEmailOtp(value);
+                                    setEmailOtpError("");
+                                  }}
+                                  error={!!emailOtpError}
+                                  disabled={verifyingEmailOtp}
+                                  autoFocus={true}
+                                />
+                                {emailOtpError && (
+                                  <p className="text-sm text-red-600">
+                                    {emailOtpError}
+                                  </p>
+                                )}
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={handleVerifyEmailOtp}
+                                    disabled={
+                                      verifyingEmailOtp || emailOtp.length !== 4
+                                    }
+                                    className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {verifyingEmailOtp ? (
+                                      <span className="flex items-center justify-center gap-2">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Verifying...
+                                      </span>
+                                    ) : (
+                                      "Verify Code"
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={handleResendEmailOtp}
+                                    disabled={emailResendCooldown > 0}
+                                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {emailResendCooldown > 0
+                                      ? `Resend (${emailResendCooldown}s)`
+                                      : "Resend"}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
 
                 {/* Additional Patient Information */}
                 {selectedProfileType === "patient" &&
@@ -512,14 +578,14 @@ export default function ProfilePage() {
                           className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-emerald-100">
+                            <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
                               <Shield className="w-5 h-5 text-emerald-700" />
                             </div>
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <p className="text-xs text-slate-500 font-medium">
                                 Email
                               </p>
-                              <p className="text-slate-800 font-semibold">
+                              <p className="text-slate-800 font-semibold break-words overflow-wrap-anywhere">
                                 {selectedPatientDetails.email}
                               </p>
                             </div>
@@ -626,441 +692,57 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Appointments Section - Only for non-admin users */}
+          {/* Quick Actions Section - Only for non-admin users */}
           {user.role !== "ADMIN" && (
             <div className="mt-8">
               <h2 className="text-2xl font-bold text-emerald-800 mb-6">
-                {selectedProfileType === "patient" && selectedPatientDetails
-                  ? `${selectedPatientDetails.name}'s Appointments`
-                  : "My Appointments"}
+                Quick Actions
               </h2>
-
-              {loadingAppointments ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[...Array(6)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-pulse"
-                    >
-                      <div className="h-4 bg-slate-200 rounded w-3/4 mb-4"></div>
-                      <div className="h-3 bg-slate-200 rounded w-1/2 mb-3"></div>
-                      <div className="h-3 bg-slate-200 rounded w-2/3 mb-3"></div>
-                      <div className="h-3 bg-slate-200 rounded w-1/3 mb-4"></div>
-                      <div className="h-10 bg-slate-200 rounded w-full"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : appointments.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-                  <Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                  <p className="text-slate-500 text-lg">
-                    No appointments found
-                  </p>
-                  <p className="text-slate-400 text-sm mt-2">
-                    Book your first appointment to get started
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {appointments.map((appointment) => {
-                    const statusColors = {
-                      PENDING:
-                        "bg-yellow-100 text-yellow-800 border-yellow-200",
-                      CONFIRMED: "bg-blue-100 text-blue-800 border-blue-200",
-                      CANCELLED: "bg-red-100 text-red-800 border-red-200",
-                      COMPLETED: "bg-green-100 text-green-800 border-green-200",
-                    };
-
-                    const paymentColors = {
-                      SUCCESS: "bg-green-50 text-green-700",
-                      FAILED: "bg-red-50 text-red-700",
-                      PENDING: "bg-yellow-50 text-yellow-700",
-                    };
-
-                    return (
-                      <motion.div
-                        key={appointment.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col"
-                      >
-                        {/* Card Header */}
-                        <div className="p-5 border-b border-slate-100">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                                <User className="w-5 h-5 text-emerald-600" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-slate-900 truncate">
-                                  {appointment.patient.name}
-                                </h3>
-                                <p className="text-sm text-slate-500 truncate">
-                                  {appointment.patient.phone}
-                                </p>
-                              </div>
-                            </div>
-                            <span
-                              className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${
-                                statusColors[
-                                  appointment.status as keyof typeof statusColors
-                                ] || statusColors.PENDING
-                              }`}
-                            >
-                              {appointment.status}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Card Body */}
-                        <div className="p-5 flex-1 space-y-4">
-                          {/* Appointment Time */}
-                          <div className="flex items-start gap-3">
-                            <Calendar className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-slate-500 mb-1">
-                                Appointment Date
-                              </p>
-                              <p className="text-sm font-medium text-slate-900">
-                                {new Date(
-                                  appointment.startAt
-                                ).toLocaleDateString("en-IN", {
-                                  weekday: "short",
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                })}
-                              </p>
-                              {appointment.status === "CONFIRMED" &&
-                                appointment.endAt && (
-                                  <>
-                                    <p className="text-xs text-slate-500 mb-1 mt-2">
-                                      Slot Timing
-                                    </p>
-                                    <p className="text-sm text-slate-600">
-                                      {new Date(
-                                        appointment.startAt
-                                      ).toLocaleTimeString("en-IN", {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}{" "}
-                                      to{" "}
-                                      {new Date(
-                                        appointment.endAt
-                                      ).toLocaleTimeString("en-IN", {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </p>
-                                  </>
-                                )}
-                              {appointment.status !== "CONFIRMED" && (
-                                <p className="text-sm text-slate-600 mt-1">
-                                  {new Date(
-                                    appointment.startAt
-                                  ).toLocaleTimeString("en-IN", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Plan Name */}
-                          <div className="flex items-start gap-3">
-                            <Clock className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-slate-500 mb-1">
-                                Plan
-                              </p>
-                              <p className="text-sm font-medium text-slate-900 truncate">
-                                {appointment.planName}
-                              </p>
-                              {appointment.planSlug === "baby-solid-food" && (
-                                <BabySolidPlanOptions
-                                  selectedPackageName={
-                                    appointment.planPackageName
-                                  }
-                                  variant="compact"
-                                />
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Mode and Payment Status */}
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="flex items-center gap-2">
-                              {appointment.mode === "IN_PERSON" ? (
-                                <MapPin className="w-4 h-4 text-blue-600" />
-                              ) : (
-                                <Video className="w-4 h-4 text-purple-600" />
-                              )}
-                              <span
-                                className={`text-xs font-medium px-2 py-1 rounded ${
-                                  appointment.mode === "IN_PERSON"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : "bg-purple-100 text-purple-700"
-                                }`}
-                              >
-                                {appointment.mode === "IN_PERSON"
-                                  ? "In-Person"
-                                  : "Online"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-xs font-medium px-2 py-1 rounded ${
-                                  paymentColors[
-                                    appointment.paymentStatus as keyof typeof paymentColors
-                                  ] || paymentColors.PENDING
-                                }`}
-                              >
-                                {appointment.paymentStatus}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Card Footer */}
-                        <div className="p-5 border-t border-slate-100 bg-slate-50">
-                          <button
-                            onClick={() =>
-                              router.push(
-                                `/profile/appointments/${appointment.id}`
-                              )
-                            }
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
-                          >
-                            <Eye className="w-4 h-4" />
-                            View Details
-                          </button>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Pending Appointments Section - Only for non-admin users, shown for both self and patient profiles */}
-          {user.role !== "ADMIN" && (
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-emerald-800">
-                    {selectedProfileType === "patient" && selectedPatientDetails
-                      ? `${selectedPatientDetails.name}'s Pending Appointments`
-                      : "Pending Appointments"}
-                  </h2>
-                  <p className="text-slate-600 mt-1 text-sm">
-                    {selectedProfileType === "patient"
-                      ? "Continue booking for this patient"
-                      : "Continue where you left off with your booking"}
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    if (
-                      selectedProfileType === "patient" &&
-                      selectedPatientId
-                    ) {
-                      fetchPendingAppointments(selectedPatientId);
-                    } else {
-                      fetchPendingAppointments();
-                    }
-                  }}
-                  disabled={loadingPending}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50"
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* View Appointments Button */}
+                <motion.button
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  onClick={() => router.push("/profile/appointments")}
+                  className="p-6 bg-white rounded-xl shadow-sm border-2 border-emerald-200 hover:border-emerald-400 hover:shadow-md transition-all duration-200 text-left group"
                 >
-                  <RefreshCw
-                    className={`w-4 h-4 ${
-                      loadingPending ? "animate-spin" : ""
-                    }`}
-                  />
-                  Refresh
-                </button>
-              </div>
-
-              {loadingPending ? (
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                  <div className="flex items-center justify-center">
-                    <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
-                    <span className="ml-2 text-slate-600">
-                      Loading pending appointments...
-                    </span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-emerald-100 rounded-lg group-hover:bg-emerald-200 transition-colors">
+                      <Calendar className="w-6 h-6 text-emerald-700" />
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-transform" />
                   </div>
-                </div>
-              ) : pendingAppointments.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-                  <AlertCircle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                  <p className="text-slate-500 text-lg">
-                    No pending appointments
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                    View Appointments
+                  </h3>
+                  <p className="text-sm text-slate-600">
+                    View all your confirmed and scheduled appointments
                   </p>
-                  <p className="text-slate-400 text-sm mt-2">
-                    {selectedProfileType === "patient"
-                      ? "This patient doesn't have any incomplete bookings"
-                      : "You don't have any incomplete bookings"}
+                </motion.button>
+
+                {/* View Pending Appointments Button */}
+                <motion.button
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  onClick={() => router.push("/profile/pending-appointments")}
+                  className="p-6 bg-white rounded-xl shadow-sm border-2 border-emerald-200 hover:border-emerald-400 hover:shadow-md transition-all duration-200 text-left group"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-amber-100 rounded-lg group-hover:bg-amber-200 transition-colors">
+                      <Clock className="w-6 h-6 text-amber-700" />
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                    View Pending Appointments
+                  </h3>
+                  <p className="text-sm text-slate-600">
+                    Continue where you left off with incomplete bookings
                   </p>
-                </div>
-              ) : (
-                <div className="space-y-4 mb-8">
-                  {pendingAppointments.map((appointment) => {
-                    const ProgressIcon = getProgressIcon(
-                      appointment.bookingProgress
-                    );
-                    const isResuming = resuming === appointment.id;
-
-                    return (
-                      <motion.div
-                        key={appointment.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white rounded-xl shadow-sm border-2 border-slate-200 p-6 hover:border-emerald-300 transition-colors"
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-start gap-4">
-                              <div className="flex-shrink-0">
-                                <div
-                                  className={`w-12 h-12 rounded-lg flex items-center justify-center ${getProgressColor(
-                                    appointment.bookingProgress
-                                  )}`}
-                                >
-                                  <ProgressIcon className="w-6 h-6" />
-                                </div>
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <h3 className="text-lg font-semibold text-slate-900">
-                                    {appointment.planName}
-                                  </h3>
-                                  {appointment.planPackageName && (
-                                    <span className="text-sm text-slate-500">
-                                      ({appointment.planPackageName})
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="space-y-2 text-sm text-slate-600">
-                                  <div className="flex items-center gap-2">
-                                    <User className="w-4 h-4" />
-                                    <span>{appointment.patient.name}</span>
-                                  </div>
-
-                                  {appointment.slot ? (
-                                    <>
-                                      <div className="flex items-center gap-2">
-                                        <Calendar className="w-4 h-4" />
-                                        <span>
-                                          {new Date(
-                                            appointment.slot.startAt
-                                          ).toLocaleDateString("en-IN", {
-                                            weekday: "short",
-                                            year: "numeric",
-                                            month: "short",
-                                            day: "numeric",
-                                          })}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <Clock className="w-4 h-4" />
-                                        <span>
-                                          {new Date(
-                                            appointment.slot.startAt
-                                          ).toLocaleTimeString("en-IN", {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                          })}{" "}
-                                          -{" "}
-                                          {new Date(
-                                            appointment.slot.endAt
-                                          ).toLocaleTimeString("en-IN", {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                          })}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <MapPin className="w-4 h-4" />
-                                        <span className="capitalize">
-                                          {appointment.slot.mode
-                                            .toLowerCase()
-                                            .replace("_", " ")}
-                                        </span>
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <div className="flex items-center gap-2 text-amber-600">
-                                      <AlertCircle className="w-4 h-4" />
-                                      <span>Slot not selected yet</span>
-                                    </div>
-                                  )}
-
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">Status:</span>
-                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
-                                      Pending
-                                    </span>
-                                    {appointment.bookingProgress && (
-                                      <>
-                                        <span className="text-slate-400">
-                                          •
-                                        </span>
-                                        <span
-                                          className={`px-2 py-1 rounded-full text-xs font-semibold ${getProgressColor(
-                                            appointment.bookingProgress
-                                          )}`}
-                                        >
-                                          {getStepLabel(
-                                            appointment.bookingProgress
-                                          )}
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex-shrink-0 flex gap-2">
-                            <button
-                              onClick={() => openDeleteModal(appointment.id)}
-                              disabled={
-                                deletingId === appointment.id || deleteModalOpen
-                              }
-                              className="px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                              title="Delete appointment"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleResumeBooking(appointment)}
-                              disabled={isResuming}
-                              className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {isResuming ? (
-                                <>
-                                  <RefreshCw className="w-4 h-4 animate-spin" />
-                                  <span>Resuming...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span>Continue Booking</span>
-                                  <ArrowRight className="w-4 h-4" />
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              )}
+                </motion.button>
+              </div>
             </div>
           )}
 
@@ -1101,23 +783,7 @@ export default function ProfilePage() {
         </motion.div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmationModal
-        isOpen={deleteModalOpen}
-        onClose={closeDeleteModal}
-        onConfirm={handleDeleteAppointment}
-        isLoading={deletingId !== null}
-        title="Delete Appointment"
-        message="Are you sure you want to delete this appointment? This action cannot be undone."
-      />
-
-      {/* Success Notification */}
-      <SuccessNotification
-        isOpen={showSuccessNotification}
-        onClose={() => setShowSuccessNotification(false)}
-        message="Appointment deleted successfully!"
-        duration={3000}
-      />
+      {/* Removed modals - now handled in separate pages */}
     </div>
   );
 }

@@ -14,6 +14,7 @@ interface User {
   id: string;
   name: string;
   phone: string;
+  email?: string;
   role?: string;
 }
 
@@ -41,9 +42,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ---------------- LOGIN ----------------
   const login = (user: User) => {
     setUser(user);
-    // Note: User data stored in memory only for UI state
+    // Store user data in localStorage for UI state persistence
     // Authentication is handled via httpOnly cookies (secure, XSS-resistant)
-    toast.success("Logged in");
+    localStorage.setItem("user", JSON.stringify(user));
+    // Toast notification is handled by the login/register pages
   };
 
   // ---------------- LOGOUT ----------------

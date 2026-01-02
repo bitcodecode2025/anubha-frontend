@@ -5,7 +5,7 @@ import { AuthProvider } from "./context/AuthContext";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ThemeContextProvider from "@/lib/themeProvider";
-import Providers from "./Providers"; // 🌟 Global Booking Provider Wrapper
+import Providers from "./Providers";
 import LogoutAnimation from "@/components/ui/LogoutAnimation";
 
 const geistSans = Geist({
@@ -206,16 +206,16 @@ export default function RootLayout({
             __html: JSON.stringify(personSchema),
           }}
         />
-        <AuthProvider>
-          <ThemeContextProvider>
-            <Providers>
+        <Providers>
+          <AuthProvider>
+            <ThemeContextProvider>
               <LogoutAnimation />
               <Navbar />
               <main className="min-h-screen pt-20">{children}</main>
               <Footer />
-            </Providers>
-          </ThemeContextProvider>
-        </AuthProvider>
+            </ThemeContextProvider>
+          </AuthProvider>
+        </Providers>
       </body>
     </html>
   );

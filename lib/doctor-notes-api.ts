@@ -342,19 +342,19 @@ export async function saveDoctorNotes(
       "file(s)"
     );
     dietChartFiles.forEach((file: File) => {
+      console.log("[API] saveDoctorNotes - Diet chart file:", file);
+    });
+    dietChartFiles.forEach((file: File) => {
       formData.append("dietCharts", file);
     });
   }
 
   try {
+    // When using FormData, axios automatically sets Content-Type with boundary
+    // Don't manually set Content-Type header - axios handles it automatically
     const res = await api.post<SaveDoctorNotesResponse>(
       "admin/doctor-notes",
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      }
+      formData
     );
     const duration = Date.now() - startTime;
     console.log(
@@ -364,6 +364,14 @@ export async function saveDoctorNotes(
     return res.data;
   } catch (error: any) {
     const duration = Date.now() - startTime;
+
+    // Log the raw error first
+    console.error(`[API] saveDoctorNotes - Raw Error:`, error);
+    console.error(`[API] saveDoctorNotes - Error Type:`, typeof error);
+    console.error(
+      `[API] saveDoctorNotes - Error Constructor:`,
+      error?.constructor?.name
+    );
 
     // Log full error details for debugging
     const errorDetails: any = {
@@ -380,6 +388,13 @@ export async function saveDoctorNotes(
       if (error.response.data.errors) {
         errorDetails.errors = error.response.data.errors;
       }
+      // Extract message if present
+      if (error.response.data.message) {
+        errorDetails.errorMessage = error.response.data.message;
+      }
+      if (error.response.data.error) {
+        errorDetails.errorMessage = error.response.data.error;
+      }
     }
 
     // Add request config if available
@@ -387,12 +402,14 @@ export async function saveDoctorNotes(
       errorDetails.requestConfig = {
         url: error.config.url,
         method: error.config.method,
+        baseURL: error.config.baseURL,
       };
     }
 
     // Add request info if available (network errors)
     if (error?.request) {
       errorDetails.requestInfo = "Request made but no response received";
+      errorDetails.isNetworkError = true;
     }
 
     // Add stack trace for debugging
@@ -400,10 +417,19 @@ export async function saveDoctorNotes(
       errorDetails.stack = error.stack;
     }
 
+    // Log error details
     console.error(
       `[API] saveDoctorNotes - Error (${duration}ms):`,
-      errorDetails
+      JSON.stringify(errorDetails, null, 2)
     );
+
+    // Also log the full error object
+    console.error(`[API] saveDoctorNotes - Full Error Object:`, {
+      error,
+      response: error?.response,
+      request: error?.request,
+      config: error?.config,
+    });
 
     throw error;
   }
@@ -454,14 +480,11 @@ export async function updateDoctorNotes(
   }
 
   try {
+    // When using FormData, axios automatically sets Content-Type with boundary
+    // Don't manually set Content-Type header - axios handles it automatically
     const res = await api.patch<SaveDoctorNotesResponse>(
       `admin/doctor-notes/${appointmentId}`,
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      }
+      formData
     );
     const duration = Date.now() - startTime;
     console.log(
@@ -541,6 +564,23 @@ export async function getDoctorNotes(
         "[API] getDoctorNotes - Form Data Keys:",
         Object.keys(res.data.doctorNotes.formData || {})
       );
+      console.log(
+        "[API] getDoctorNotes - Attachments:",
+        res.data.doctorNotes.attachments
+      );
+      console.log(
+        "[API] getDoctorNotes - Attachments count:",
+        res.data.doctorNotes.attachments?.length || 0
+      );
+      if (
+        res.data.doctorNotes.attachments &&
+        res.data.doctorNotes.attachments.length > 0
+      ) {
+        console.log(
+          "[API] getDoctorNotes - First attachment:",
+          JSON.stringify(res.data.doctorNotes.attachments[0], null, 2)
+        );
+      }
     }
     return res.data;
   } catch (error: any) {

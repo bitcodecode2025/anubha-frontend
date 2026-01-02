@@ -12,33 +12,37 @@ import { getDoctorNotes } from "@/lib/doctor-notes-api";
 export default function DoctorNotesPage() {
   const router = useRouter();
   const params = useParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading } = useAuth();
   const appointmentId = params.id as string;
 
   const [appointment, setAppointment] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [initialFormData, setInitialFormData] = useState<any>(null);
 
+  // 🔒 ROUTE PROTECTION: Wait for backend auth, then check permissions
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace("/login");
-      return;
+    if (!loading) {
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+      if (user.role !== "ADMIN") {
+        router.replace("/");
+        return;
+      }
     }
-    if (user.role !== "ADMIN") {
-      router.replace("/");
-      return;
-    }
-  }, [user, authLoading, router]);
+  }, [user, loading, router]);
 
   useEffect(() => {
-    if (user?.role === "ADMIN" && appointmentId) {
-      loadAppointmentData();
-    }
+    // CRITICAL: Do NOT call APIs until backend auth_token cookie is ready
+    if (!user || user.role !== "ADMIN") return;
+    if (!appointmentId) return;
+
+    loadAppointmentData();
   }, [appointmentId, user]);
 
   async function loadAppointmentData() {
-    setLoading(true);
+    setLoadingData(true);
     try {
       console.log("[PAGE] Loading appointment data for:", appointmentId);
       const response = await getAppointmentDetails(appointmentId);
@@ -59,7 +63,7 @@ export default function DoctorNotesPage() {
     } catch (error: any) {
       console.error("[PAGE] Failed to load appointment data:", error);
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   }
 
@@ -75,7 +79,16 @@ export default function DoctorNotesPage() {
     router.push(`/admin/appointments/${appointmentId}`);
   }
 
-  if (authLoading || loading) {
+  // Show loading state or return null if not authenticated
+  if (loading) {
+    return null;
+  }
+
+  if (!user || user.role !== "ADMIN") {
+    return null;
+  }
+
+  if (loadingData) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-white to-emerald-50/40">
         <div className="max-w-7xl mx-auto px-6 py-8">

@@ -116,7 +116,7 @@ export default function StepMeasurements({
           {/* Upper Body Section */}
           <div className="border-2 border-[#D4C4B0] rounded-lg p-4 bg-[#F7F3ED]/50">
             <h4 className="text-base font-semibold text-[#4A7A49] mb-4">
-              UPPER BODY
+              UPPER BODY <span className="text-sm font-normal text-slate-500">(Optional)</span>
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input
@@ -194,7 +194,7 @@ export default function StepMeasurements({
           {/* Lower Body Section */}
           <div className="border-2 border-[#D4C4B0] rounded-lg p-4 bg-[#F7F3ED]/50">
             <h4 className="text-base font-semibold text-[#4A7A49] mb-4">
-              LOWER BODY
+              LOWER BODY <span className="text-sm font-normal text-slate-500">(Optional)</span>
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input

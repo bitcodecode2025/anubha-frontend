@@ -8,6 +8,7 @@ import { useBookingForm } from "@/app/book/context/BookingFormContext";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import PatientSelectionModal from "@/components/doctor-notes/PatientSelectionModal";
+import AdminBookingBlockModal from "@/components/common/AdminBookingBlockModal";
 import toast from "react-hot-toast";
 
 const GENERAL_CONSULTATION = {
@@ -23,6 +24,7 @@ const TYPING_INTERVAL_MS = 25;
 export default function ServicesPage() {
   const [typedText, setTypedText] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAdminBlockModalOpen, setIsAdminBlockModalOpen] = useState(false);
   const [pendingBooking, setPendingBooking] = useState<any>(null);
   const prefersReducedMotion = useReducedMotion();
   const { setForm, resetForm } = useBookingForm();
@@ -56,10 +58,18 @@ export default function ServicesPage() {
         FIXED: General Consultation Handler
   -----------------------------------------*/
   function handleGeneralConsultation() {
-    // Check if user is authenticated
+    // Do NOT redirect while auth is loading
+    if (loading) return;
+    // Check if user is authenticated (only after loading is complete)
     if (!user) {
       toast.error("Please login to book an appointment");
-      router.push("/login");
+      router.replace("/login");
+      return;
+    }
+
+    // Check if user is admin - block booking
+    if (user.role === "ADMIN") {
+      setIsAdminBlockModalOpen(true);
       return;
     }
 
@@ -291,6 +301,12 @@ export default function ServicesPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSelectPatient={handlePatientSelected}
+      />
+
+      {/* Admin Booking Block Modal */}
+      <AdminBookingBlockModal
+        isOpen={isAdminBlockModalOpen}
+        onClose={() => setIsAdminBlockModalOpen(false)}
       />
     </main>
   );

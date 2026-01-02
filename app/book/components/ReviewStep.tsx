@@ -115,13 +115,20 @@ function ReviewCard({
         <h4 className="font-semibold text-slate-800">{title}</h4>
       </div>
 
-      <div className="grid gap-2 text-sm">
+      <div className="space-y-2 text-sm">
         {items.map(
           (item, idx) =>
             item.value && (
-              <div key={idx} className="flex justify-between">
-                <span className="text-slate-500">{item.label}</span>
-                <span className="font-medium text-slate-800">{item.value}</span>
+              <div
+                key={idx}
+                className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2"
+              >
+                <span className="text-slate-500 sm:min-w-[140px] sm:shrink-0">
+                  {item.label}
+                </span>
+                <span className="font-medium text-slate-800 break-words">
+                  {item.value}
+                </span>
               </div>
             )
         )}

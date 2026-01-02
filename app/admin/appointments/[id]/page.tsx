@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   X,
   ZoomIn,
+  Download,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -85,38 +86,42 @@ function SkeletonLoader() {
 export default function AppointmentDetailsPage() {
   const router = useRouter();
   const params = useParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading } = useAuth();
   const [appointment, setAppointment] = useState<AppointmentDetails | null>(
     null
   );
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [doctorNotes, setDoctorNotes] = useState<any>(null);
   const [loadingNotes, setLoadingNotes] = useState(true);
 
   const appointmentId = params.id as string;
 
+  // 🔒 ROUTE PROTECTION: Wait for backend auth, then check permissions
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace("/login");
-      return;
+    if (!loading) {
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+      if (user.role !== "ADMIN") {
+        router.replace("/");
+        return;
+      }
     }
-    if (user.role !== "ADMIN") {
-      router.replace("/");
-      return;
-    }
-  }, [user, authLoading, router]);
+  }, [user, loading, router]);
 
   useEffect(() => {
-    if (user?.role === "ADMIN" && appointmentId) {
-      fetchAppointmentDetails();
-      fetchDoctorNotes();
-    }
+    // CRITICAL: Do NOT call APIs until backend auth_token cookie is ready
+    if (!user || user.role !== "ADMIN") return;
+    if (!appointmentId) return;
+
+    fetchAppointmentDetails();
+    fetchDoctorNotes();
   }, [appointmentId, user]);
 
   async function fetchAppointmentDetails() {
-    setLoading(true);
+    setLoadingData(true);
     try {
       console.log("[APPOINTMENT DETAILS] Fetching appointment:", appointmentId);
       const response = await getAppointmentDetails(appointmentId);
@@ -132,7 +137,7 @@ export default function AppointmentDetailsPage() {
       );
       router.push("/admin/appointments");
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   }
 
@@ -148,6 +153,14 @@ export default function AppointmentDetailsPage() {
         console.log(
           "[APPOINTMENT DETAILS] Doctor notes found:",
           response.doctorNotes
+        );
+        console.log(
+          "[APPOINTMENT DETAILS] Attachments:",
+          response.doctorNotes.attachments
+        );
+        console.log(
+          "[APPOINTMENT DETAILS] Attachments count:",
+          response.doctorNotes.attachments?.length || 0
         );
         setDoctorNotes(response.doctorNotes);
       } else {
@@ -166,11 +179,43 @@ export default function AppointmentDetailsPage() {
   }
 
   function handleNotesSaved() {
+    // Guard: Do not proceed if backend token is not ready
+    if (!user || user.role !== "ADMIN") {
+      return;
+    }
     // Refresh doctor notes after save
     fetchDoctorNotes();
   }
 
-  if (authLoading || loading) {
+  async function handleDownloadImage(imageUrl: string, fileName: string) {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success("Image downloaded successfully");
+    } catch (error: any) {
+      console.error("Failed to download image:", error);
+      toast.error("Failed to download image");
+    }
+  }
+
+  // Show loading state or return null if not authenticated
+  if (loading) {
+    return null;
+  }
+
+  if (!user || user.role !== "ADMIN") {
+    return null;
+  }
+
+  if (loadingData) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-white to-emerald-50/40 px-6 py-8">
         <div className="max-w-4xl mx-auto">
@@ -319,50 +364,50 @@ export default function AppointmentDetailsPage() {
             Patient Details
           </h3>
           <div className="bg-slate-50 rounded-lg p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Name</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.name}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Phone</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.phone}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Email</div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words break-all">
                   {appointment.patient.email}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0 flex-shrink-0">
                 <div className="text-sm text-slate-600 mb-1">Age</div>
                 <div className="font-medium text-slate-900">
                   {appointment.patient.age} years
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Gender</div>
                 <div className="font-medium text-slate-900">
                   {appointment.patient.gender}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Weight</div>
                 <div className="font-medium text-slate-900">
                   {appointment.patient.weight} kg
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Height</div>
                 <div className="font-medium text-slate-900">
                   {appointment.patient.height} cm
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm text-slate-600 mb-1">Date of Birth</div>
                 <div className="font-medium text-slate-900">
                   {new Date(appointment.patient.dateOfBirth).toLocaleDateString(
@@ -373,7 +418,7 @@ export default function AppointmentDetailsPage() {
             </div>
             <div>
               <div className="text-sm text-slate-600 mb-1">Address</div>
-              <div className="font-medium text-slate-900">
+              <div className="font-medium text-slate-900 break-words">
                 {appointment.patient.address}
               </div>
             </div>
@@ -382,7 +427,7 @@ export default function AppointmentDetailsPage() {
                 <div className="text-sm text-slate-600 mb-1">
                   Medical History
                 </div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.medicalHistory}
                 </div>
               </div>
@@ -392,7 +437,7 @@ export default function AppointmentDetailsPage() {
                 <div className="text-sm text-slate-600 mb-1">
                   Appointment Concerns
                 </div>
-                <div className="font-medium text-slate-900">
+                <div className="font-medium text-slate-900 break-words">
                   {appointment.patient.appointmentConcerns}
                 </div>
               </div>
@@ -488,6 +533,16 @@ export default function AppointmentDetailsPage() {
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded mb-2 flex items-center justify-center transition-colors">
                         <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadImage(file.url, file.fileName);
+                        }}
+                        className="absolute bottom-2 right-2 p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Download image"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
                     </div>
                   ) : (
                     <div className="w-full h-48 bg-slate-200 rounded mb-2 flex items-center justify-center">

@@ -27,14 +27,19 @@ export async function getInvoiceByAppointmentId(
     );
     return res.data;
   } catch (error: any) {
-    console.error("[INVOICE] Error fetching invoice:", error);
+    // Handle 404 errors gracefully (invoice may not exist yet)
     if (error?.response?.status === 404) {
-      // Invoice not found - this is ok, it may not be generated yet
       return {
         success: false,
         error: "Invoice not found",
       };
     }
+
+    // Log unexpected errors only
+    if (error?.response?.status !== 404) {
+      console.error("[INVOICE] Error fetching invoice:", error);
+    }
+
     return {
       success: false,
       error: error?.response?.data?.error || "Failed to fetch invoice",
@@ -64,6 +69,29 @@ export async function getInvoiceDownloadUrl(
     throw new Error(
       error?.response?.data?.error || "Failed to fetch invoice URL"
     );
+  }
+}
+
+/**
+ * Generate invoice for an appointment
+ */
+export async function generateInvoice(
+  appointmentId: string
+): Promise<GetInvoiceResponse> {
+  try {
+    const res = await api.post<GetInvoiceResponse>(
+      `invoice/generate/${appointmentId}`
+    );
+    return res.data;
+  } catch (error: any) {
+    console.error("[INVOICE] Error generating invoice:", error);
+    return {
+      success: false,
+      error:
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to generate invoice",
+    };
   }
 }
 

@@ -2,38 +2,45 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Calendar, Clock, ArrowRight } from "lucide-react";
+import {
+  Loader2,
+  Calendar,
+  Clock,
+  ArrowRight,
+  MessageSquare,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/app/context/AuthContext";
 import toast from "react-hot-toast";
-import Link from "next/link";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const [clickedCard, setClickedCard] = useState<string | null>(null);
 
+  // 🔒 ROUTE PROTECTION: Wait for auth, then check permissions
   useEffect(() => {
-    if (loading) return;
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-    if (user.role !== "ADMIN") {
-      router.replace("/");
+    if (!loading) {
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+      if (user.role !== "ADMIN") {
+        router.replace("/");
+        return;
+      }
     }
   }, [user, loading, router]);
 
-  if (loading || !user) {
+  if (loading) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3 text-slate-600">
+      <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-        <p>Checking permissions…</p>
       </div>
     );
   }
 
-  if (user.role !== "ADMIN") {
+  if (!user || user.role !== "ADMIN") {
     return null;
   }
 
@@ -42,6 +49,8 @@ export default function AdminDashboardPage() {
       router.push("/admin/slots");
     } else if (cardId === "appointments") {
       router.push("/admin/appointments");
+    } else if (cardId === "testimonials") {
+      router.push("/admin/testimonials");
     } else {
       setClickedCard(cardId);
       toast("Coming soon!", {
@@ -69,7 +78,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Edit Slots Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -172,6 +181,59 @@ export default function AdminDashboardPage() {
               {/* CTA */}
               <div className="flex items-center gap-2 text-emerald-600 font-semibold">
                 <span>View Appointments</span>
+                <ArrowRight className="w-5 h-5" />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Testimonials Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            whileHover={{ scale: 1.02, y: -5 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => handleCardClick("testimonials")}
+            className={`
+              relative overflow-hidden
+              bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50
+              rounded-2xl shadow-xl border-2 border-purple-200/50
+              p-8 cursor-pointer transition-all duration-300
+              ${
+                clickedCard === "testimonials"
+                  ? "ring-4 ring-purple-400 ring-offset-2"
+                  : ""
+              }
+              hover:shadow-2xl hover:border-purple-300
+            `}
+          >
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-pink-500 rounded-full blur-2xl" />
+            </div>
+
+            {/* Content */}
+            <div className="relative z-10">
+              {/* Icon */}
+              <div className="mb-6 flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg">
+                <MessageSquare className="w-8 h-8 text-white" />
+              </div>
+
+              {/* Title */}
+              <h3 className="text-2xl font-bold text-slate-900 mb-3">
+                Testimonials
+              </h3>
+
+              {/* Description */}
+              <p className="text-slate-600 mb-6 leading-relaxed">
+                Manage client testimonials. Add, edit, or remove testimonials
+                displayed on the website.
+              </p>
+
+              {/* CTA */}
+              <div className="flex items-center gap-2 text-purple-600 font-semibold">
+                <span>Manage Testimonials</span>
                 <ArrowRight className="w-5 h-5" />
               </div>
             </div>

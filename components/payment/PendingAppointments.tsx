@@ -11,6 +11,7 @@ import {
 } from "@/lib/pending-appointments";
 import { getExistingOrder } from "@/lib/payment";
 import { useBookingForm } from "@/app/book/context/BookingFormContext";
+import { useAuth } from "@/app/context/AuthContext";
 import {
   Calendar,
   Clock,
@@ -37,10 +38,15 @@ export default function PendingAppointments({
   const [resuming, setResuming] = useState<string | null>(null);
   const router = useRouter();
   const { setForm } = useBookingForm();
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
+    // CRITICAL: Do NOT call APIs while auth is loading or user is null
+    if (authLoading) return; // Wait for auth to resolve
+    if (!user) return; // Do not call APIs if user is null
+
     fetchPendingAppointments();
-  }, []);
+  }, [user, authLoading]);
 
   const fetchPendingAppointments = async () => {
     try {

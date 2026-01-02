@@ -33,9 +33,9 @@ import BabySolidPlanOptions from "@/components/appointments/BabySolidPlanOptions
 
 export default function AdminAppointmentsPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [limit] = useState(20);
@@ -51,25 +51,29 @@ export default function AdminAppointmentsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [modeFilter, setModeFilter] = useState<string>("");
 
+  // 🔒 ROUTE PROTECTION: Wait for auth, then check permissions
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace("/login");
-      return;
+    if (!loading) {
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+      if (user.role !== "ADMIN") {
+        router.replace("/");
+        return;
+      }
     }
-    if (user.role !== "ADMIN") {
-      router.replace("/");
-    }
-  }, [user, authLoading, router]);
+  }, [user, loading, router]);
 
   useEffect(() => {
-    if (user?.role === "ADMIN") {
-      fetchAppointments();
-    }
+    // CRITICAL: Do NOT call APIs until user is authenticated
+    if (!user || user.role !== "ADMIN") return;
+
+    fetchAppointments();
   }, [page, statusFilter, modeFilter, user]);
 
   async function fetchAppointments() {
-    setLoading(true);
+    setLoadingData(true);
     try {
       const params: any = { page, limit };
       if (statusFilter) params.status = statusFilter;
@@ -84,7 +88,7 @@ export default function AdminAppointmentsPage() {
         error?.response?.data?.message || "Failed to load appointments"
       );
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   }
 
@@ -96,6 +100,12 @@ export default function AdminAppointmentsPage() {
     appointmentId: string,
     newStatus: "CANCELLED" | "COMPLETED"
   ) {
+    // Guard: Do not proceed if backend token is not ready
+    if (!user || user.role !== "ADMIN") {
+      toast.error("Please wait for authentication to complete");
+      return;
+    }
+
     setUpdatingStatus(appointmentId);
     try {
       await updateAppointmentStatus(appointmentId, newStatus);
@@ -125,6 +135,12 @@ export default function AdminAppointmentsPage() {
   async function handleDeleteAppointment() {
     if (!appointmentToDelete) return;
 
+    // Guard: Do not proceed if backend token is not ready
+    if (!user || user.role !== "ADMIN") {
+      toast.error("Please wait for authentication to complete");
+      return;
+    }
+
     setDeletingId(appointmentToDelete);
     try {
       await deleteAppointment(appointmentToDelete);
@@ -150,7 +166,16 @@ export default function AdminAppointmentsPage() {
 
   const totalPages = Math.ceil(total / limit);
 
-  if (authLoading || loading) {
+  // Show loading state or return null if not authenticated
+  if (loading) {
+    return null;
+  }
+
+  if (!user || user.role !== "ADMIN") {
+    return null;
+  }
+
+  if (loadingData) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-white to-emerald-50/40 px-6 py-8">
         <div className="max-w-7xl mx-auto">
@@ -259,10 +284,6 @@ export default function AdminAppointmentsPage() {
         </div>
       </main>
     );
-  }
-
-  if (user?.role !== "ADMIN") {
-    return null;
   }
 
   return (

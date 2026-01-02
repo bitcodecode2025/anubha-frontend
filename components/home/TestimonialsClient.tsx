@@ -1,6 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import dynamic from "next/dynamic";
+
+const TestimonialsLightboxClient = dynamic(
+  () => import("./TestimonialsLightboxClient"),
+  { ssr: false }
+);
 
 export type Testimonial = {
   img: string;
@@ -12,7 +18,7 @@ type TestimonialCardProps = {
   testimonial: Testimonial;
 };
 
-function TestimonialCard({
+export function TestimonialCard({
   testimonial,
   index,
   isMobile = false,
@@ -113,114 +119,58 @@ type Props = {
 };
 
 export default function TestimonialsClient({ testimonials }: Props) {
-  return (
-    <>
-      {/* Mobile: Horizontal Scroll with Snap */}
-      <div className="sm:hidden">
-        {/* Scroll hint with animation */}
-        <div className="flex items-center justify-center gap-3 mb-6 animate-bounce-slow">
-          <div className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-emerald-100 to-teal-100 text-emerald-700 border border-emerald-200 rounded-full shadow-md">
-            <svg
-              className="w-5 h-5 animate-pulse"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M7 16l-4-4m0 0l4-4m-4 4h18"
-              />
-            </svg>
-            <span className="text-sm font-semibold">Swipe to explore</span>
-            <svg
-              className="w-5 h-5 animate-pulse"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 8l4 4m0 0l-4 4m4-4H3"
-              />
-            </svg>
-          </div>
-        </div>
+  // Safety check: ensure testimonials is an array
+  if (
+    !testimonials ||
+    !Array.isArray(testimonials) ||
+    testimonials.length === 0
+  ) {
+    return null;
+  }
 
-        {/* Scrollable testimonials - iOS optimized for smooth native scrolling */}
-        <div
-          className="overflow-x-auto scrollbar-hide snap-x snap-proximity flex gap-6 pb-4 -mx-6 px-6"
-          style={{
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          {testimonials.map((testimonial, index) => (
-            <TestimonialCard
-              key={testimonial.name}
-              testimonial={testimonial}
-              index={index}
-              isMobile={true}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Tablet & Desktop: Grid Layout */}
-      <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-        {testimonials.map((testimonial, index) => (
-          <TestimonialCard
-            key={testimonial.name}
-            testimonial={testimonial}
-            index={index}
-            isMobile={false}
-          />
-        ))}
-      </div>
-
-      {/* Custom styles */}
-      <style jsx global>{`
-        .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
-        .perspective-1000 {
-          perspective: 1000px;
-        }
-
-        /* Floating bounce animation */
-        @keyframes float {
-          0%,
-          100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-15px);
-          }
-        }
-        .animate-float {
-          animation: float 3s ease-in-out infinite;
-        }
-
-        /* Mobile hint bounce */
-        @keyframes bounce-slow {
-          0%,
-          100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-5px);
-          }
-        }
-        .animate-bounce-slow {
-          animation: bounce-slow 2s ease-in-out infinite;
-        }
-      `}</style>
-    </>
-  );
+  // Use the new carousel component (same as NGO gallery)
+  // TestimonialCard is still exported for use in admin page
+  return <TestimonialsLightboxClient testimonials={testimonials} />;
 }
+
+// Export styles for TestimonialCard (used in admin page)
+export const testimonialStyles = `
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+
+  /* Floating bounce animation */
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-15px);
+    }
+  }
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* Mobile hint bounce */
+  @keyframes bounce-slow {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+  .animate-bounce-slow {
+    animation: bounce-slow 2s ease-in-out infinite;
+  }
+`;

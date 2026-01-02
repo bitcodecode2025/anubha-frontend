@@ -174,7 +174,9 @@ export default function Footer() {
           © {currentYear} Anubha's Nutrition Clinic — All rights reserved.
         </p>
         <div>
-          <p className="text-white text-sm">made by tanishk khare</p>
+          <p className="text-white text-sm">
+            Created and Powered by Tanishk Khare
+          </p>
         </div>
       </div>
     </footer>
