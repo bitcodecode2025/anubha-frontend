@@ -32,7 +32,9 @@ interface DeleteTestimonialResponse {
 
 export async function getTestimonials(): Promise<Testimonial[]> {
   try {
-    const response = await api.get<GetTestimonialsResponse>("/testimonials/admin");
+    const response = await api.get<GetTestimonialsResponse>(
+      "/testimonials/admin"
+    );
     if (response.data.success && response.data.testimonials) {
       return response.data.testimonials;
     }
@@ -50,11 +52,15 @@ export async function createTestimonial(
   data: FormData
 ): Promise<{ success: boolean; testimonial: Testimonial }> {
   try {
-    const response = await api.post<CreateTestimonialResponse>("/testimonials/admin", data, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await api.post<CreateTestimonialResponse>(
+      "/testimonials/admin",
+      data,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
     console.error(
@@ -70,11 +76,15 @@ export async function updateTestimonial(
   data: FormData
 ): Promise<{ success: boolean; testimonial: Testimonial }> {
   try {
-    const response = await api.put<UpdateTestimonialResponse>(`/testimonials/admin/${id}`, data, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await api.put<UpdateTestimonialResponse>(
+      `/testimonials/admin/${id}`,
+      data,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
     console.error(
@@ -89,7 +99,9 @@ export async function deleteTestimonial(
   id: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const response = await api.delete<DeleteTestimonialResponse>(`/testimonials/admin/${id}`);
+    const response = await api.delete<DeleteTestimonialResponse>(
+      `/testimonials/admin/${id}`
+    );
     return response.data;
   } catch (error: any) {
     console.error(
