@@ -40,10 +40,6 @@ export async function getTestimonials(): Promise<Testimonial[]> {
     }
     return [];
   } catch (error: any) {
-    console.error(
-      "[API] Get testimonials error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -63,10 +59,6 @@ export async function createTestimonial(
     );
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Create testimonial error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -87,10 +79,6 @@ export async function updateTestimonial(
     );
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Update testimonial error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -104,10 +92,6 @@ export async function deleteTestimonial(
     );
     return response.data;
   } catch (error: any) {
-    console.error(
-      "[API] Delete testimonial error:",
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }

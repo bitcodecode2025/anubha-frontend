@@ -138,8 +138,5 @@ export function isServerError(error: unknown): boolean {
  * Log error in development only
  */
 export function logError(error: unknown, context: string): void {
-  if (process.env.NODE_ENV === "development") {
-    const details = extractErrorDetails(error);
-    console.error(`[ERROR] ${context}:`, details);
-  }
+  // Error logging removed for production
 }

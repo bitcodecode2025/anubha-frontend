@@ -84,7 +84,6 @@ export default function ProfilePage() {
       const patientsList = await getMyPatients();
       setPatients(patientsList);
     } catch (error: any) {
-      console.error("Failed to fetch patients:", error);
       toast.error("Failed to load patients");
     } finally {
       setLoadingPatients(false);
@@ -97,7 +96,6 @@ export default function ProfilePage() {
       const response = await getPatientDetails(patientId);
       setSelectedPatientDetails(response.patient);
     } catch (error: any) {
-      console.error("Failed to fetch patient details:", error);
       toast.error("Failed to load patient details");
       setSelectedPatientDetails(null);
     } finally {

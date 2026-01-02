@@ -83,7 +83,6 @@ export default function AdminAppointmentsPage() {
       setAppointments(response.appointments);
       setTotal(response.total);
     } catch (error: any) {
-      console.error("Failed to fetch appointments:", error);
       toast.error(
         error?.response?.data?.message || "Failed to load appointments"
       );
@@ -112,7 +111,6 @@ export default function AdminAppointmentsPage() {
       toast.success(`Appointment marked as ${newStatus.toLowerCase()}`);
       fetchAppointments();
     } catch (error: any) {
-      console.error("Failed to update status:", error);
       toast.error(
         error?.response?.data?.error || "Failed to update appointment status"
       );
@@ -148,7 +146,6 @@ export default function AdminAppointmentsPage() {
       setShowSuccessNotification(true);
       fetchAppointments();
     } catch (error: any) {
-      console.error("Failed to delete appointment:", error);
       toast.error(
         error?.response?.data?.error ||
           error?.response?.data?.message ||

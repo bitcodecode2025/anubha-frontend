@@ -87,28 +87,13 @@ export default function UserDetailsPage() {
 
     // If on last step (review), create patient and proceed to recall
     if (internalStep >= total) {
-      console.log("[PATIENT CREATION] User clicked 'Proceed to Recall'");
-      console.log("[PATIENT CREATION] Current form state:", {
-        patientId: form.patientId,
-        planSlug: form.planSlug,
-        planName: form.planName,
-        hasAllFields: !!(form.fullName && form.mobile && form.email),
-      });
-
       // If patientId already exists (existing patient selected), skip creation and proceed to recall
       // This handles the edge case where existing user selects a patient for weight loss plan
       if (form.patientId) {
-        console.log(
-          "[PATIENT CREATION] Patient already exists with ID:",
-          form.patientId,
-          "- Skipping creation and proceeding to recall"
-        );
         toast.success("Proceeding to recall page");
         router.push("/book/recall");
         return;
       }
-
-      console.log("[PATIENT CREATION] Creating new patient from form data");
 
       // Create a new patient from the form data when user clicks "Proceed to Recall"
 
@@ -139,22 +124,15 @@ export default function UserDetailsPage() {
         const errorMsg = `Please complete the following required fields: ${missingFields.join(
           ", "
         )}`;
-        console.error(
-          "[PATIENT CREATION] Missing required fields:",
-          missingFields
-        );
         setError(errorMsg);
         toast.error(errorMsg);
         return;
       }
 
-      console.log("[PATIENT CREATION] All required fields validated");
-
       setIsCreatingPatient(true);
       setError(null);
 
       try {
-        console.log("[PATIENT CREATION] Starting patient creation API call...");
         // Map food preference from form to backend format
         // Backend enum: VEG, NON_VEG, EGG_VEG (with underscores)
         const foodPreferenceMap: Record<string, string> = {
@@ -227,25 +205,9 @@ export default function UserDetailsPage() {
           fileIds: [], // Files will be uploaded in recall page
         };
 
-        console.log("[PATIENT CREATION] Sending patient data to backend:", {
-          ...patientData,
-          phone: patientData.phone.substring(0, 3) + "****", // Mask phone for privacy
-        });
-
         const response = await createPatient(patientData);
 
-        console.log("[PATIENT CREATION] Backend response:", {
-          success: response.success,
-          message: response.message,
-          patientId: response.patient?.id,
-          fullResponse: response,
-        });
-
         if (response.success && response.patient?.id) {
-          console.log(
-            "[PATIENT CREATION] Patient created successfully with ID:",
-            response.patient.id
-          );
           // Update form with the created patient ID and ensure plan details are preserved
           const updatedFormData = {
             patientId: response.patient.id,
@@ -258,33 +220,14 @@ export default function UserDetailsPage() {
             planPackageDuration: form.planPackageDuration,
           };
 
-          console.log(
-            "[PATIENT CREATION] Updating form context with patientId:",
-            updatedFormData
-          );
           setForm(updatedFormData);
 
-          console.log(
-            "[PATIENT CREATION] Form updated, navigating to recall page"
-          );
           toast.success("Patient details saved successfully!");
           router.push("/book/recall");
         } else {
-          console.error(
-            "[PATIENT CREATION] Response indicates failure:",
-            response
-          );
           throw new Error(response.message || "Failed to create patient");
         }
       } catch (error: any) {
-        console.error("[PATIENT CREATION] Error creating patient:", error);
-        console.error("[PATIENT CREATION] Error details:", {
-          message: error?.message,
-          response: error?.response?.data,
-          status: error?.response?.status,
-          statusText: error?.response?.statusText,
-        });
-
         // Extract detailed error message
         let errorMessage = "Failed to save patient details. Please try again.";
         const backendFieldErrors: Record<string, string> = {};
@@ -331,28 +274,16 @@ export default function UserDetailsPage() {
                     const formFieldName =
                       fieldNameMap[fieldPath] || fieldPath.toLowerCase();
                     backendFieldErrors[formFieldName] = err.message;
-                    console.log("[FIELD ERROR MAPPED]", {
-                      backendPath: fieldPath,
-                      frontendField: formFieldName,
-                      message: err.message,
-                    });
                   } else if (err.message) {
                     errorMessage = err.message;
                   }
                 } catch (parseErr) {
-                  console.error(
-                    "[ERROR PARSING] Failed to parse error:",
-                    err,
-                    parseErr
-                  );
+                  // Failed to parse error, silently continue
                 }
               });
 
-              console.log("[BACKEND FIELD ERRORS]", backendFieldErrors);
-
               // If we have field-specific errors, set them and navigate to relevant step
               if (Object.keys(backendFieldErrors).length > 0) {
-                console.log("[SETTING FIELD ERRORS]", backendFieldErrors);
                 setFieldErrors(backendFieldErrors);
 
                 // Determine which step contains the first error field
@@ -387,7 +318,6 @@ export default function UserDetailsPage() {
                   targetStep = 4;
                 }
 
-                console.log("[NAVIGATING TO STEP]", { errorField, targetStep });
                 setInternalStep(targetStep);
                 const errorMessages =
                   Object.values(backendFieldErrors).join(", ");
@@ -420,10 +350,6 @@ export default function UserDetailsPage() {
             errorMessage = error.message;
           }
         } catch (parseError) {
-          console.error(
-            "[ERROR HANDLING] Failed to parse error response:",
-            parseError
-          );
           errorMessage = error?.message || "An unexpected error occurred";
         }
 

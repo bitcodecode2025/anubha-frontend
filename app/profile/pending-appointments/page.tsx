@@ -57,7 +57,6 @@ export default function PendingAppointmentsPage() {
       const response = await getPendingAppointments();
       setAppointments(response.appointments || []);
     } catch (error: any) {
-      console.error("Failed to fetch pending appointments:", error);
       toast.error(
         error?.response?.data?.message || "Failed to load pending appointments"
       );
@@ -96,7 +95,6 @@ export default function PendingAppointmentsPage() {
       );
       handleCloseDeleteModal();
     } catch (error: any) {
-      console.error("Failed to delete appointment:", error);
       toast.error(
         error?.response?.data?.message || "Failed to delete appointment"
       );

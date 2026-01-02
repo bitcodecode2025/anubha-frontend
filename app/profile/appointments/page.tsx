@@ -49,7 +49,6 @@ export default function AppointmentsPage() {
       const response = await getMyAppointments();
       setAppointments(response.appointments || []);
     } catch (error: any) {
-      console.error("Failed to fetch appointments:", error);
       toast.error(
         error?.response?.data?.message || "Failed to load appointments"
       );

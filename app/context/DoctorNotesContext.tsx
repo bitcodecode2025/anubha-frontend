@@ -55,14 +55,6 @@ export function DoctorNotesProvider({
       const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsed = JSON.parse(stored);
-        console.log(
-          "[DoctorNotesContext] Restored form data from localStorage:",
-          {
-            appointmentId,
-            keys: Object.keys(parsed),
-            timestamp: parsed._lastSaved,
-          }
-        );
 
         // Remove metadata before setting form data
         const { _lastSaved, ...restoredData } = parsed;
@@ -78,15 +70,10 @@ export function DoctorNotesProvider({
         setHasUnsavedChanges(false);
       } else if (initialData) {
         // No stored data, use initial data from server
-        console.log(
-          "[DoctorNotesContext] Using initial data from server:",
-          Object.keys(initialData)
-        );
         setFormData(initialData);
         setHasUnsavedChanges(false);
       }
     } catch (error) {
-      console.error("[DoctorNotesContext] Failed to restore form data:", error);
       // If restore fails, use initialData or empty object
       if (initialData) {
         setFormData(initialData);
@@ -108,18 +95,7 @@ export function DoctorNotesProvider({
         localStorage.setItem(storageKey, JSON.stringify(dataToStore));
         setLastSaved(new Date());
         setIsAutoSaving(false);
-        console.log(
-          "[DoctorNotesContext] Auto-saved form data to localStorage:",
-          {
-            appointmentId,
-            keys: Object.keys(data),
-          }
-        );
       } catch (error) {
-        console.error(
-          "[DoctorNotesContext] Failed to save to localStorage:",
-          error
-        );
         setIsAutoSaving(false);
       }
     },
@@ -211,15 +187,8 @@ export function DoctorNotesProvider({
       setFormData({});
       setHasUnsavedChanges(false);
       setLastSaved(null);
-      console.log(
-        "[DoctorNotesContext] Cleared form data from localStorage:",
-        appointmentId
-      );
     } catch (error) {
-      console.error(
-        "[DoctorNotesContext] Failed to clear localStorage:",
-        error
-      );
+      // Failed to clear localStorage, silently continue
     }
   }, [appointmentId, storageKey]);
 

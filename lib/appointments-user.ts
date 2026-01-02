@@ -96,7 +96,6 @@ export async function getMyAppointments(): Promise<GetMyAppointmentsResponse> {
     const res = await api.get<GetMyAppointmentsResponse>("appointments/my");
     return res.data;
   } catch (error: any) {
-    console.error("Failed to fetch appointments:", error);
     throw error;
   }
 }
@@ -110,7 +109,6 @@ export async function getUserAppointmentDetails(
     );
     return res.data;
   } catch (error: any) {
-    console.error("Failed to fetch appointment details:", error);
     throw error;
   }
 }
@@ -129,7 +127,6 @@ export async function getAppointmentsByPatient(
     );
     return res.data;
   } catch (error: any) {
-    console.error("Failed to fetch patient appointments:", error);
     throw error;
   }
 }

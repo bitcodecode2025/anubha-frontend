@@ -44,14 +44,11 @@ function safeToast(
           }
         }
       } catch (err) {
-        console.error("[PAYMENT] Toast error (safe):", err);
-        // Fallback: log to console if toast fails
-        console.log(`[PAYMENT] ${type.toUpperCase()}: ${message}`);
+        // Toast failed, silently continue
       }
     }, delay);
   } catch (err) {
-    console.error("[PAYMENT] Safe toast wrapper error:", err);
-    console.log(`[PAYMENT] ${type.toUpperCase()}: ${message}`);
+    // Toast wrapper error, silently continue
   }
 }
 
@@ -105,7 +102,7 @@ export default function PaymentPage() {
           }
         }
       } catch (err) {
-        console.error("[PAYMENT] Error reading localStorage:", err);
+        // Error reading localStorage, silently continue
       }
 
       return false;
@@ -138,8 +135,7 @@ export default function PaymentPage() {
         })();
 
       if (appointmentId) {
-        updateBookingProgress(appointmentId, "PAYMENT").catch((err) => {
-          console.error("[PAYMENT] Failed to update booking progress:", err);
+        updateBookingProgress(appointmentId, "PAYMENT").catch(() => {
           // Non-blocking error
         });
       }
@@ -156,7 +152,6 @@ export default function PaymentPage() {
 
     // Check if document is available
     if (typeof window === "undefined" || !window.document) {
-      console.error("[PAYMENT] Window or document not available");
       return;
     }
 
@@ -164,12 +159,10 @@ export default function PaymentPage() {
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
     script.onload = () => {
-      console.log("[PAYMENT] Razorpay script loaded successfully");
       razorpayLoaded.current = true;
       setIsRazorpayReady(true);
     };
     script.onerror = () => {
-      console.error("[PAYMENT] Failed to load Razorpay script");
       safeToast(
         "error",
         "Failed to load payment gateway. Please refresh the page."
@@ -187,7 +180,7 @@ export default function PaymentPage() {
           script.parentNode.removeChild(script);
         }
       } catch (err) {
-        console.error("[PAYMENT] Script cleanup error:", err);
+        // Script cleanup error, silently continue
       }
     };
   }, []);
@@ -207,12 +200,6 @@ export default function PaymentPage() {
       setError(null);
 
       try {
-        console.log("[PAYMENT] Processing payment verification:", {
-          orderId: response.razorpay_order_id,
-          paymentId: response.razorpay_payment_id,
-          hasSignature: !!response.razorpay_signature,
-        });
-
         // Verify payment on backend
         const verifyResponse = await verifyPayment({
           orderId: response.razorpay_order_id,
@@ -221,8 +208,6 @@ export default function PaymentPage() {
         });
 
         if (verifyResponse.success) {
-          console.log("[PAYMENT] Payment verified successfully");
-
           // Mark payment as successful BEFORE resetting form
           // This prevents validation error after resetForm() clears the form
           paymentSuccessfulRef.current = true;
@@ -247,9 +232,6 @@ export default function PaymentPage() {
             verifyResponse.timeout &&
             verifyResponse.error === "VERIFICATION_TIMEOUT"
           ) {
-            console.warn(
-              "[PAYMENT] Verification timeout - payment may still be processing"
-            );
             // Timeout means verification API didn't respond in time
             // BUT webhook may still process payment successfully
             // Show appropriate message to user
@@ -279,7 +261,6 @@ export default function PaymentPage() {
           }
         }
       } catch (error: any) {
-        console.error("[PAYMENT] Payment verification error:", error);
         const errorMsg =
           error?.response?.data?.error ||
           error?.message ||
@@ -324,12 +305,6 @@ export default function PaymentPage() {
       handler: function (response: any) {
         // Store response in state instead of processing immediately
         // This avoids cross-origin frame access issues
-        console.log("[PAYMENT] Payment success response received:", {
-          orderId: response.razorpay_order_id,
-          paymentId: response.razorpay_payment_id,
-          hasSignature: !!response.razorpay_signature,
-        });
-
         // Defer state update to ensure we're back in main window context
         // This will trigger the useEffect that processes the payment
         setTimeout(() => {
@@ -338,7 +313,7 @@ export default function PaymentPage() {
               setPaymentResponse(response);
             }
           } catch (err) {
-            console.error("[PAYMENT] Handler state update error:", err);
+            // Handler state update error, silently continue
           }
         }, 100);
       },
@@ -352,7 +327,6 @@ export default function PaymentPage() {
       },
       modal: {
         ondismiss: function () {
-          console.log("[PAYMENT] Payment modal dismissed by user");
           // Defer state updates to main window context
           setTimeout(() => {
             try {
@@ -364,7 +338,7 @@ export default function PaymentPage() {
                 paymentInitiatedRef.current = false; // Allow retry
               }
             } catch (err) {
-              console.error("[PAYMENT] Ondismiss error:", err);
+              // Ondismiss error, silently continue
             }
           }, 0);
         },
@@ -374,7 +348,6 @@ export default function PaymentPage() {
     const razorpay = new window.Razorpay(options);
 
     razorpay.on("payment.failed", function (response: any) {
-      console.error("[PAYMENT] Payment failed:", response);
       const errorDescription =
         response.error?.description ||
         response.error?.reason ||
@@ -382,11 +355,8 @@ export default function PaymentPage() {
 
       // Update booking progress to PAYMENT (user is still at payment step)
       if (form.appointmentId) {
-        updateBookingProgress(form.appointmentId, "PAYMENT").catch((err) => {
-          console.error(
-            "[PAYMENT] Failed to update booking progress on failure:",
-            err
-          );
+        updateBookingProgress(form.appointmentId, "PAYMENT").catch(() => {
+          // Failed to update booking progress, silently continue
         });
       }
 
@@ -401,7 +371,7 @@ export default function PaymentPage() {
             paymentInitiatedRef.current = false; // Allow retry
           }
         } catch (err) {
-          console.error("[PAYMENT] Payment failed handler error:", err);
+          // Payment failed handler error, silently continue
         }
       }, 0);
     });
@@ -440,7 +410,6 @@ export default function PaymentPage() {
     if (!razorpayKeyId) {
       const errorMsg =
         "Payment gateway not configured. Please contact support.";
-      console.error("[PAYMENT] Razorpay key ID missing");
       safeToast("error", errorMsg);
       setError(errorMsg);
       return;
@@ -452,11 +421,6 @@ export default function PaymentPage() {
     setResumingPayment(false);
 
     try {
-      console.log(
-        "[PAYMENT] Creating order for appointment:",
-        form.appointmentId
-      );
-
       // Create order using existing appointment
       const orderResponse = await createOrder({
         appointmentId: form.appointmentId,
@@ -468,9 +432,6 @@ export default function PaymentPage() {
         orderResponse.error ===
           "Payment order already exists for this appointment."
       ) {
-        console.log(
-          "[PAYMENT] Order already exists, fetching existing order..."
-        );
         setResumingPayment(true);
         safeToast("loading", "Resuming your previous payment attempt...", 0);
 
@@ -481,9 +442,6 @@ export default function PaymentPage() {
 
         // Check if backend says to create new order (expired/invalid)
         if (existingOrderResponse.shouldCreateNew) {
-          console.log(
-            "[PAYMENT] Backend says to create new order (expired/invalid)"
-          );
           setResumingPayment(false);
 
           if (existingOrderResponse.expired) {
@@ -509,10 +467,6 @@ export default function PaymentPage() {
           });
 
           if (retryOrderResponse.success && retryOrderResponse.order) {
-            console.log("[PAYMENT] New order created after expiry:", {
-              orderId: retryOrderResponse.order.id,
-              amount: retryOrderResponse.order.amount,
-            });
             setOrderCreated(true);
             setLoading(false);
             safeToast("success", "Payment link ready!", 0);
@@ -528,10 +482,6 @@ export default function PaymentPage() {
         }
 
         if (existingOrderResponse.success && existingOrderResponse.order) {
-          console.log(
-            "[PAYMENT] Existing order found:",
-            existingOrderResponse.order.id
-          );
           setOrderCreated(true);
           setLoading(false);
           setResumingPayment(false);
@@ -559,20 +509,12 @@ export default function PaymentPage() {
 
       // Order created successfully
       const { order } = orderResponse;
-      console.log("[PAYMENT] Order created:", {
-        orderId: order.id,
-        amount: order.amount,
-        currency: order.currency,
-      });
-
       setOrderCreated(true);
       setLoading(false);
 
       // Start Razorpay payment
       startRazorpayPayment(order);
     } catch (error: any) {
-      console.error("[PAYMENT] Payment initiation error:", error);
-
       // Determine error type
       let errorType:
         | "payment"

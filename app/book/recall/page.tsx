@@ -63,9 +63,6 @@ export default function RecallPage() {
     const timer = setTimeout(() => {
       // Check if plan details are present (planPackageDuration is optional for general consultation)
       if (!form.planSlug || !form.planName || !form.planPriceRaw) {
-        console.log(
-          "[RECALL PAGE] Missing plan details, redirecting to services"
-        );
         toast.error("Please select a plan first");
         router.replace("/services");
         return;
@@ -73,9 +70,6 @@ export default function RecallPage() {
 
       // Check if patient exists (required for recall)
       if (!form.patientId) {
-        console.log(
-          "[RECALL PAGE] Missing patientId, redirecting to user-details"
-        );
         toast.error("Please complete the user details form first");
         router.replace("/book/user-details");
         return;
@@ -186,14 +180,12 @@ export default function RecallPage() {
         } catch (err) {
           // If link fails, files are still uploaded but not linked
           // This is okay, they can be linked later
-          console.warn("Failed to link files to patient:", err);
         }
       }
 
       setUploadedFiles((prev) => [...prev, ...uploaded]);
       toast.success(`Successfully uploaded ${uploaded.length} file(s)`);
     } catch (err: any) {
-      console.error("File upload error:", err);
       const errorMsg =
         err?.response?.data?.error ||
         err?.response?.data?.message ||
@@ -225,7 +217,6 @@ export default function RecallPage() {
       setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId));
       toast.success("File deleted successfully");
     } catch (err: any) {
-      console.error("File delete error:", err);
       const errorMsg =
         err?.response?.data?.message ||
         err?.message ||
@@ -238,14 +229,6 @@ export default function RecallPage() {
   }
 
   async function submitRecall() {
-    console.log("[RECALL SUBMISSION] User clicked 'Save & Continue'");
-    console.log("[RECALL SUBMISSION] Current form state:", {
-      patientId: form.patientId,
-      planSlug: form.planSlug,
-      planName: form.planName,
-      uploadedFilesCount: uploadedFiles.length,
-    });
-
     setError(null);
 
     // Validate recall entries
@@ -253,35 +236,18 @@ export default function RecallPage() {
       (e) => e.mealType && e.time && e.foodItem && e.quantity
     );
 
-    console.log("[RECALL SUBMISSION] Recall entries validation:", {
-      totalEntries: recallEntries.length,
-      validEntries: validEntries.length,
-      entries: validEntries.map((e) => ({
-        mealType: e.mealType,
-        time: e.time,
-        foodItem: e.foodItem,
-        quantity: e.quantity,
-      })),
-    });
-
     if (validEntries.length === 0) {
-      console.log("[RECALL SUBMISSION] No valid recall entries");
       setShowValidationModal(true);
       return;
     }
 
     // Patient should already be created when user filled the form
     if (!form.patientId) {
-      console.error("[RECALL SUBMISSION] Patient ID missing");
       setError("Patient not found. Please go back and complete the form.");
       toast.error("Patient not found. Please go back and complete the form.");
       router.push("/book/user-details");
       return;
     }
-
-    console.log(
-      "[RECALL SUBMISSION] All validations passed, starting submission"
-    );
 
     setIsSubmitting(true);
     setError(null);
@@ -289,7 +255,6 @@ export default function RecallPage() {
     try {
       // Validate plan details are present (planPackageDuration is optional for general consultation)
       if (!form.planSlug || !form.planName || !form.planPriceRaw) {
-        console.error("[RECALL SUBMISSION] Plan details missing");
         setError("Plan details are missing. Please go back and select a plan.");
         toast.error(
           "Plan details are missing. Please go back and select a plan."
@@ -297,38 +262,17 @@ export default function RecallPage() {
         return;
       }
 
-      console.log(
-        "[RECALL SUBMISSION] Step 1: Linking uploaded files to patient"
-      );
       // Link uploaded files to patient if any
       if (uploadedFiles.length > 0) {
         try {
-          console.log(
-            "[RECALL SUBMISSION] Linking files:",
-            uploadedFiles.map((f) => f.id)
-          );
           await linkFilesToPatient(
             form.patientId,
             uploadedFiles.map((f) => f.id)
           );
-          console.log("[RECALL SUBMISSION] Files linked successfully");
         } catch (fileError: any) {
-          console.log(
-            "[RECALL SUBMISSION] File linking error:",
-            fileError.message
-          );
           // Don't fail the entire submission if file linking fails
-          console.warn(
-            "[RECALL SUBMISSION] Continuing despite file linking error"
-          );
         }
-      } else {
-        console.log("[RECALL SUBMISSION] No files to link");
       }
-
-      console.log(
-        "[RECALL SUBMISSION] Step 2: Creating appointment with PENDING status"
-      );
 
       // Validate and prepare appointment data
       // planDuration is required - use "40 min" for general consultation if not provided
@@ -363,9 +307,6 @@ export default function RecallPage() {
         planPrice = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : 0;
 
         if (!planPrice || planPrice === 0) {
-          console.error(
-            `[RECALL] Failed to parse price from: "${form.planPrice}"`
-          );
           throw new Error(`Invalid plan price. Please select a plan again.`);
         }
       } else {
@@ -382,27 +323,15 @@ export default function RecallPage() {
         appointmentMode: appointmentMode, // Always valid: "IN_PERSON" or "ONLINE"
       };
 
-      console.log("[RECALL SUBMISSION] Appointment data:", {
-        ...appointmentData,
-        planPrice: `₹${appointmentData.planPrice}`,
-      });
-
       const appointmentResponse = await createAppointment({
         ...appointmentData,
         bookingProgress: "RECALL", // User has completed recall, next step is slot
-      });
-
-      console.log("[RECALL SUBMISSION] Appointment created:", {
-        success: appointmentResponse.success,
-        appointmentId: appointmentResponse.data?.id,
-        status: appointmentResponse.data?.status,
       });
 
       if (!appointmentResponse.success || !appointmentResponse.data?.id) {
         throw new Error("Failed to create appointment");
       }
 
-      console.log("[RECALL SUBMISSION] Step 3: Creating recall with entries");
       // Create recall with entries and link to appointment
       const recallData = {
         patientId: form.patientId,
@@ -417,38 +346,14 @@ export default function RecallPage() {
         appointmentId: appointmentResponse.data.id, // Link recall to appointment
       };
 
-      console.log("[RECALL SUBMISSION] Recall data:", {
-        patientId: recallData.patientId,
-        entriesCount: recallData.entries.length,
-        hasNotes: !!recallData.notes,
-        appointmentId: recallData.appointmentId,
-      });
-
       const recallResponse = await createRecall(recallData);
 
-      console.log("[RECALL SUBMISSION] Recall created:", {
-        success: recallResponse.success,
-        recallId: recallResponse.data?.id,
-      });
-
       // Store appointmentId in form context for slot selection
-      console.log(
-        "[RECALL SUBMISSION] Storing appointmentId in form context:",
-        appointmentResponse.data.id
-      );
       setForm({ appointmentId: appointmentResponse.data.id });
 
-      console.log("[RECALL SUBMISSION] All steps completed successfully");
       toast.success("Recall and appointment saved successfully!");
       router.push("/book/slot");
     } catch (error: any) {
-      console.error("[RECALL SUBMISSION] Error:", error);
-      console.error("[RECALL SUBMISSION] Error details:", {
-        message: error?.message,
-        response: error?.response?.data,
-        status: error?.response?.status,
-        statusText: error?.response?.statusText,
-      });
 
       const errorMessage =
         error?.response?.data?.message ||
@@ -459,7 +364,6 @@ export default function RecallPage() {
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
-      console.log("🏁 [RECALL SUBMISSION] Submission process completed");
     }
   }
 

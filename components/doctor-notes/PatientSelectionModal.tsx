@@ -37,7 +37,6 @@ export default function PatientSelectionModal({
       const data = await getMyPatients();
       setPatients(data);
     } catch (error: any) {
-      console.error("Failed to fetch patients:", error);
       toast.error(
         error?.response?.data?.message || "Failed to load patients"
       );

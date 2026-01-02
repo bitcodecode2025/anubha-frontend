@@ -44,33 +44,25 @@ export default function DoctorNotesPage() {
   async function loadAppointmentData() {
     setLoadingData(true);
     try {
-      console.log("[PAGE] Loading appointment data for:", appointmentId);
       const response = await getAppointmentDetails(appointmentId);
-      console.log("[PAGE] Appointment data loaded:", response.appointment);
       setAppointment(response.appointment);
 
       // Load existing doctor notes if any
       try {
         const notesResponse = await getDoctorNotes(appointmentId);
         if (notesResponse.success && notesResponse.doctorNotes?.formData) {
-          console.log("[PAGE] Found existing doctor notes");
           setInitialFormData(notesResponse.doctorNotes.formData);
         }
       } catch (error) {
         // No existing notes, that's okay
-        console.log("[PAGE] No existing doctor notes found");
       }
     } catch (error: any) {
-      console.error("[PAGE] Failed to load appointment data:", error);
     } finally {
       setLoadingData(false);
     }
   }
 
   function handleSave() {
-    console.log(
-      "[NOTES PAGE] Notes saved, navigating back to appointment details"
-    );
     // Navigate back to appointment details to show the preview
     router.push(`/admin/appointments/${appointmentId}`);
   }

@@ -18,29 +18,9 @@ export default function Testimonials() {
   useEffect(() => {
     async function fetchTestimonials() {
       try {
-        // Check if API URL is configured
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-        if (!apiUrl) {
-          console.warn(
-            "NEXT_PUBLIC_API_URL is not set. Using relative URL. Make sure backend is running on the same origin."
-          );
-        }
-
         const response = await api.get<TestimonialsResponse>("/testimonials");
-        console.log(`testimonials: ${JSON.stringify(response.data)}`);
         setTestimonials(response.data.testimonials);
       } catch (error: any) {
-        console.error("Failed to fetch testimonials:", {
-          message: error.message,
-          code: error.code,
-          response: error.response?.data,
-          request: error.request,
-          config: {
-            url: error.config?.url,
-            baseURL: error.config?.baseURL,
-            method: error.config?.method,
-          },
-        });
         // Fallback to empty array if API fails
         setTestimonials([]);
       } finally {

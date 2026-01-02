@@ -310,19 +310,6 @@ export interface GetDoctorNotesResponse {
 export async function saveDoctorNotes(
   data: SaveDoctorNotesRequest
 ): Promise<SaveDoctorNotesResponse> {
-  console.log("[API] saveDoctorNotes - Starting full form submission");
-  console.log("[API] saveDoctorNotes - Appointment ID:", data.appointmentId);
-  console.log("[API] saveDoctorNotes - Is Draft:", data.isDraft);
-  console.log(
-    "[API] saveDoctorNotes - Form Data Keys:",
-    Object.keys(data.formData)
-  );
-  console.log(
-    "[API] saveDoctorNotes - Form Data Size:",
-    JSON.stringify(data.formData).length,
-    "bytes"
-  );
-
   const startTime = Date.now();
   const formData = new FormData();
   formData.append("appointmentId", data.appointmentId);
@@ -336,14 +323,6 @@ export async function saveDoctorNotes(
     Array.isArray(dietChartFiles) &&
     dietChartFiles.length > 0
   ) {
-    console.log(
-      "[API] saveDoctorNotes - Including diet chart files:",
-      dietChartFiles.length,
-      "file(s)"
-    );
-    dietChartFiles.forEach((file: File) => {
-      console.log("[API] saveDoctorNotes - Diet chart file:", file);
-    });
     dietChartFiles.forEach((file: File) => {
       formData.append("dietCharts", file);
     });
@@ -356,24 +335,11 @@ export async function saveDoctorNotes(
       "admin/doctor-notes",
       formData
     );
-    const duration = Date.now() - startTime;
-    console.log(
-      `[API] saveDoctorNotes - Success (${duration}ms) - Response:`,
-      res.data
-    );
     return res.data;
   } catch (error: any) {
     const duration = Date.now() - startTime;
 
-    // Log the raw error first
-    console.error(`[API] saveDoctorNotes - Raw Error:`, error);
-    console.error(`[API] saveDoctorNotes - Error Type:`, typeof error);
-    console.error(
-      `[API] saveDoctorNotes - Error Constructor:`,
-      error?.constructor?.name
-    );
-
-    // Log full error details for debugging
+    // Extract error details
     const errorDetails: any = {
       errorType: error?.constructor?.name || typeof error,
       errorMessage: error?.message || "Unknown error",
@@ -417,20 +383,6 @@ export async function saveDoctorNotes(
       errorDetails.stack = error.stack;
     }
 
-    // Log error details
-    console.error(
-      `[API] saveDoctorNotes - Error (${duration}ms):`,
-      JSON.stringify(errorDetails, null, 2)
-    );
-
-    // Also log the full error object
-    console.error(`[API] saveDoctorNotes - Full Error Object:`, {
-      error,
-      response: error?.response,
-      request: error?.request,
-      config: error?.config,
-    });
-
     throw error;
   }
 }
@@ -443,19 +395,6 @@ export async function updateDoctorNotes(
   partialData: Partial<DoctorNotesFormData>,
   isDraft: boolean = false
 ): Promise<SaveDoctorNotesResponse> {
-  console.log("[API] updateDoctorNotes - Starting partial update");
-  console.log("[API] updateDoctorNotes - Appointment ID:", appointmentId);
-  console.log("[API] updateDoctorNotes - Is Draft:", isDraft);
-  console.log(
-    "[API] updateDoctorNotes - Changed Fields:",
-    Object.keys(partialData)
-  );
-  console.log(
-    "[API] updateDoctorNotes - Partial Data Size:",
-    JSON.stringify(partialData).length,
-    "bytes"
-  );
-
   const startTime = Date.now();
   const formData = new FormData();
   formData.append("appointmentId", appointmentId);
@@ -469,11 +408,6 @@ export async function updateDoctorNotes(
     Array.isArray(dietChartFiles) &&
     dietChartFiles.length > 0
   ) {
-    console.log(
-      "[API] updateDoctorNotes - Including diet chart files:",
-      dietChartFiles.length,
-      "file(s)"
-    );
     dietChartFiles.forEach((file: File) => {
       formData.append("dietCharts", file);
     });
@@ -485,11 +419,6 @@ export async function updateDoctorNotes(
     const res = await api.patch<SaveDoctorNotesResponse>(
       `admin/doctor-notes/${appointmentId}`,
       formData
-    );
-    const duration = Date.now() - startTime;
-    console.log(
-      `[API] updateDoctorNotes - Success (${duration}ms) - Response:`,
-      res.data
     );
     return res.data;
   } catch (error: any) {
@@ -530,11 +459,6 @@ export async function updateDoctorNotes(
       errorDetails.stack = error.stack;
     }
 
-    console.error(
-      `[API] updateDoctorNotes - Error (${duration}ms):`,
-      errorDetails
-    );
-
     throw error;
   }
 }
@@ -545,50 +469,13 @@ export async function updateDoctorNotes(
 export async function getDoctorNotes(
   appointmentId: string
 ): Promise<GetDoctorNotesResponse> {
-  console.log(
-    "[API] getDoctorNotes - Fetching notes for appointment:",
-    appointmentId
-  );
   const startTime = Date.now();
   try {
     const res = await api.get<GetDoctorNotesResponse>(
       `admin/doctor-notes/${appointmentId}`
     );
-    const duration = Date.now() - startTime;
-    console.log(
-      `[API] getDoctorNotes - Success (${duration}ms) - Notes exist:`,
-      !!res.data.doctorNotes
-    );
-    if (res.data.doctorNotes) {
-      console.log(
-        "[API] getDoctorNotes - Form Data Keys:",
-        Object.keys(res.data.doctorNotes.formData || {})
-      );
-      console.log(
-        "[API] getDoctorNotes - Attachments:",
-        res.data.doctorNotes.attachments
-      );
-      console.log(
-        "[API] getDoctorNotes - Attachments count:",
-        res.data.doctorNotes.attachments?.length || 0
-      );
-      if (
-        res.data.doctorNotes.attachments &&
-        res.data.doctorNotes.attachments.length > 0
-      ) {
-        console.log(
-          "[API] getDoctorNotes - First attachment:",
-          JSON.stringify(res.data.doctorNotes.attachments[0], null, 2)
-        );
-      }
-    }
     return res.data;
   } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error(
-      `[API] getDoctorNotes - Error (${duration}ms):`,
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }
@@ -599,10 +486,6 @@ export async function getDoctorNotes(
 export async function deleteDoctorNoteAttachment(
   attachmentId: string
 ): Promise<{ success: boolean; message?: string; error?: string }> {
-  console.log(
-    "[API] deleteDoctorNoteAttachment - Deleting attachment:",
-    attachmentId
-  );
   const startTime = Date.now();
   try {
     const res = await api.delete<{
@@ -610,15 +493,8 @@ export async function deleteDoctorNoteAttachment(
       message?: string;
       error?: string;
     }>(`admin/doctor-notes/attachment/${attachmentId}`);
-    const duration = Date.now() - startTime;
-    console.log(`[API] deleteDoctorNoteAttachment - Success (${duration}ms)`);
     return res.data;
   } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error(
-      `[API] deleteDoctorNoteAttachment - Error (${duration}ms):`,
-      error?.response?.data || error?.message
-    );
     throw error;
   }
 }

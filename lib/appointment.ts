@@ -30,20 +30,6 @@ export interface CreateAppointmentResponse {
 export async function createAppointment(
   data: CreateAppointmentRequest
 ): Promise<CreateAppointmentResponse> {
-  console.log(
-    "[API] Creating appointment - Request URL:",
-    `${process.env.NEXT_PUBLIC_API_URL}/appointments/create`
-  );
-  console.log("[API] Creating appointment - Request data:", {
-    patientId: data.patientId,
-    planSlug: data.planSlug,
-    planName: data.planName,
-    planPrice: data.planPrice,
-    planDuration: data.planDuration,
-    appointmentMode: data.appointmentMode,
-    hasSlotId: !!data.slotId,
-  });
-
   // Validate required fields before sending
   if (!data.patientId) {
     throw new Error("patientId is required");
@@ -70,19 +56,8 @@ export async function createAppointment(
       "appointments/create",
       data
     );
-    console.log("[API] Appointment creation response status:", res.status);
-    console.log("[API] Appointment creation response data:", res.data);
     return res.data;
   } catch (error: any) {
-    console.log("[API] Appointment creation error:", {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-      config: {
-        url: error?.config?.url,
-        method: error?.config?.method,
-      },
-    });
     throw error;
   }
 }
@@ -120,11 +95,6 @@ export async function updateAppointmentSlot(
     );
     return res.data;
   } catch (error: any) {
-    console.error("[API] Update appointment slot error:", {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-    });
     throw error;
   }
 }

@@ -184,7 +184,6 @@ export function BookingFormProvider({ children }: { children: ReactNode }) {
         setFormState({ ...initialForm, ...parsed });
       }
     } catch (err) {
-      console.error("Form restore error:", err);
     }
     setLoaded(true);
   }, []);
@@ -196,7 +195,6 @@ export function BookingFormProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem("bookingForm", JSON.stringify(form));
     } catch (err) {
-      console.error("Form save error:", err);
     }
   }, [form, loaded]);
 
