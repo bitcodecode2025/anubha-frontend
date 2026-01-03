@@ -235,23 +235,13 @@ export async function loginInitiate(data: { phone: string; email: string }) {
       );
     }
 
-    // Network error - backend not reachable
+    // Network error - backend not reachable (only for actual connection failures)
     if (!error.response) {
       throw new Error("Something went wrong. Please reload the page.");
     }
 
-    // API returned error - show user-friendly message
-    const backendMessage = error.response?.data?.message || "";
-    let userMessage = "Failed to send OTP. Please try again.";
-
-    // Map backend messages to user-friendly ones
-    if (backendMessage.toLowerCase().includes("otp")) {
-      userMessage = "Failed to send OTP. Please try again.";
-    } else if (backendMessage.toLowerCase().includes("wait")) {
-      userMessage = backendMessage; // Keep rate limit messages as-is
-    }
-
-    throw new Error(userMessage);
+    // Let the error handler process validation errors from backend
+    throw error;
   }
 }
 

@@ -21,9 +21,10 @@ export function getUserFriendlyError(error: any): string {
   if (statusCode === 404) {
     if (
       backendMessage.toLowerCase().includes("account not found") ||
+      backendMessage.toLowerCase().includes("sign up") ||
       backendMessage.toLowerCase().includes("register")
     ) {
-      return "Account not found. Please sign up.";
+      return backendMessage || "Account not found. Please sign up.";
     }
     return "Account not found. Please sign up.";
   }
@@ -43,11 +44,27 @@ export function getUserFriendlyError(error: any): string {
   if (backendMessage.toLowerCase().includes("invalid credentials")) {
     return "Invalid email/phone or password. Please try again.";
   }
+
+  // OTP login specific errors
+  if (
+    backendMessage
+      .toLowerCase()
+      .includes("phone number and email do not belong to the same account")
+  ) {
+    return "The phone number and email do not belong to the same account.";
+  }
+  if (
+    backendMessage
+      .toLowerCase()
+      .includes("either the phone number or email is incorrect")
+  ) {
+    return "Either the phone number or email is incorrect. Please check and try again.";
+  }
   if (
     backendMessage.toLowerCase().includes("account not found") ||
-    backendMessage.toLowerCase().includes("register")
+    backendMessage.toLowerCase().includes("sign up to continue")
   ) {
-    return "Account not found. Please sign up.";
+    return backendMessage || "Account not found. Please sign up.";
   }
   if (
     backendMessage.toLowerCase().includes("already exists") ||
