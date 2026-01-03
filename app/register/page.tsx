@@ -67,9 +67,15 @@ export default function RegisterPage() {
     else if (formData.phone.length !== 10)
       newErrors.phone = "Phone must be 10 digits";
 
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
-      newErrors.email = "Invalid email";
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else {
+      // Validate email format using proper regex
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email.trim())) {
+        newErrors.email = "Please enter a valid email address";
+      }
+    }
 
     if (!formData.password) newErrors.password = "Password is required";
     else if (formData.password.length < 6)

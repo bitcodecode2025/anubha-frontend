@@ -8,13 +8,25 @@ export function getUserFriendlyError(error: any): string {
     return "Something went wrong. Please reload the page.";
   }
 
-  // Network errors - backend not reachable
+  // Network errors - backend not reachable (no response means connection failed)
   if (!error.response) {
     return "Something went wrong. Please reload the page.";
   }
 
-  // Get backend message
+  // Get status code and backend message
+  const statusCode = error.response?.status;
   const backendMessage = error.response?.data?.message || error.message || "";
+
+  // Handle 404 - Account not found
+  if (statusCode === 404) {
+    if (
+      backendMessage.toLowerCase().includes("account not found") ||
+      backendMessage.toLowerCase().includes("register")
+    ) {
+      return "Account not found. Please sign up.";
+    }
+    return "Account not found. Please sign up.";
+  }
 
   // OTP-related errors
   if (backendMessage.toLowerCase().includes("invalid otp")) {
@@ -35,7 +47,7 @@ export function getUserFriendlyError(error: any): string {
     backendMessage.toLowerCase().includes("account not found") ||
     backendMessage.toLowerCase().includes("register")
   ) {
-    return "No account found. Please sign up first.";
+    return "Account not found. Please sign up.";
   }
   if (
     backendMessage.toLowerCase().includes("already exists") ||

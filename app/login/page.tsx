@@ -74,6 +74,22 @@ export default function Login() {
     const newErrors: any = {};
     if (!identifier.trim()) {
       newErrors.identifier = "Email or phone is required";
+    } else {
+      // Check if identifier is email or phone
+      const isEmail = identifier.includes("@");
+      if (isEmail) {
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(identifier.trim())) {
+          newErrors.identifier = "Please enter a valid email address";
+        }
+      } else {
+        // Validate phone format (should be 10 digits or 12 with country code)
+        const phoneDigits = identifier.replace(/\D/g, "");
+        if (phoneDigits.length !== 10 && phoneDigits.length !== 12) {
+          newErrors.identifier = "Please enter a valid phone number (10 digits)";
+        }
+      }
     }
     if (!password.trim()) {
       newErrors.password = "Password is required";

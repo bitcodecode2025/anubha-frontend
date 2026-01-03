@@ -283,26 +283,12 @@ export async function loginWithPassword(data: {
     const response = await api.post("auth/login", data);
     return response.data;
   } catch (error: any) {
+    // Network/connection errors - no response from server
     if (!error.response) {
       throw new Error("Something went wrong. Please reload the page.");
     }
-    // Show user-friendly error message
-    const backendMessage = error.response?.data?.message || "";
-    let userMessage = "Login failed. Please try again.";
-
-    if (
-      backendMessage.toLowerCase().includes("invalid") ||
-      backendMessage.toLowerCase().includes("credentials")
-    ) {
-      userMessage = "Invalid email/phone or password. Please try again.";
-    } else if (
-      backendMessage.toLowerCase().includes("not found") ||
-      backendMessage.toLowerCase().includes("register")
-    ) {
-      userMessage = "No account found. Please sign up first.";
-    }
-
-    throw new Error(userMessage);
+    // Let the error handler process the response
+    throw error;
   }
 }
 
