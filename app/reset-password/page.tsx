@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { resetPassword } from "@/lib/auth";
+import { getUserFriendlyError } from "@/lib/errorHandler";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -69,7 +70,7 @@ function ResetPasswordForm() {
         router.push("/login");
       }, 2000);
     } catch (error: any) {
-      const message = error.message || "Failed to reset password";
+      const message = getUserFriendlyError(error);
       setErrors({ general: message });
       toast.error(message);
     } finally {

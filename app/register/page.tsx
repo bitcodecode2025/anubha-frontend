@@ -8,6 +8,7 @@ import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/app/context/AuthContext";
 import { signupInitiate, signupComplete } from "@/lib/auth";
+import { getUserFriendlyError } from "@/lib/errorHandler";
 import OtpInput from "@/components/auth/OtpInput";
 
 type SignupStep = "DETAILS" | "OTP";
@@ -98,7 +99,7 @@ export default function RegisterPage() {
       setResendCooldown(60);
       toast.success("OTP sent to your email and phone");
     } catch (error: any) {
-      const msg = error.response?.data?.message || "Failed to send OTP";
+      const msg = getUserFriendlyError(error);
       setErrors({ general: msg });
       toast.error(msg);
     } finally {
@@ -136,7 +137,7 @@ export default function RegisterPage() {
         router.push("/");
       }
     } catch (error: any) {
-      const msg = error.response?.data?.message || "Invalid OTP";
+      const msg = getUserFriendlyError(error);
       setErrors({ otp: msg });
       toast.error(msg);
     } finally {
