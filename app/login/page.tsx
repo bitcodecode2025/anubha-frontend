@@ -13,6 +13,7 @@ import {
   loginWithPassword,
   forgotPassword,
 } from "@/lib/auth";
+import { getUserFriendlyError } from "@/lib/errorHandler";
 import OtpInput from "@/components/auth/OtpInput";
 
 type LoginMode = "PASSWORD" | "OTP";
@@ -119,8 +120,7 @@ export default function Login() {
       toast.success("Logged in successfully!");
       router.push("/");
     } catch (error: any) {
-      const msg =
-        error.message || error.response?.data?.message || "Invalid credentials";
+      const msg = getUserFriendlyError(error);
       setErrors({ general: msg });
       toast.error(msg);
     } finally {
@@ -141,8 +141,7 @@ export default function Login() {
       setResendCooldown(60);
       toast.success("OTP sent to your email and phone");
     } catch (error: any) {
-      const msg =
-        error.message || error.response?.data?.message || "Failed to send OTP";
+      const msg = getUserFriendlyError(error);
       setErrors({ general: msg });
       toast.error(msg);
     } finally {
@@ -179,8 +178,7 @@ export default function Login() {
       toast.success("Logged in successfully!");
       router.push("/");
     } catch (error: any) {
-      const msg =
-        error.message || error.response?.data?.message || "Invalid OTP";
+      const msg = getUserFriendlyError(error);
       setErrors({ otp: msg });
       toast.error(msg);
     } finally {
@@ -213,10 +211,7 @@ export default function Login() {
       setStep("DETAILS");
       setForgotPasswordEmail("");
     } catch (error: any) {
-      const msg =
-        error.message ||
-        error.response?.data?.message ||
-        "Failed to send reset email";
+      const msg = getUserFriendlyError(error);
       setErrors({ forgotPasswordEmail: msg });
       toast.error(msg);
     } finally {

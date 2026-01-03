@@ -1,142 +1,79 @@
 /**
- * Frontend error handling utilities
- * Provides consistent error handling and user-friendly error messages
+ * Convert backend error messages to user-friendly messages
+ * Removes technical details and provides clear, actionable feedback
  */
-
-export interface ApiError {
-  message: string;
-  code?: string;
-  details?: any;
-  status?: number;
-}
-
-/**
- * Extract error message from API error response
- */
-export function extractErrorMessage(error: unknown): string {
-  if (error && typeof error === "object") {
-    const err = error as {
-      response?: { data?: { message?: string; error?: string } };
-      message?: string;
-    };
-
-    // Check for API error response
-    if (err.response?.data) {
-      return (
-        err.response.data.message ||
-        err.response.data.error ||
-        "An error occurred. Please try again."
-      );
-    }
-
-    // Check for error message
-    if (err.message) {
-      return err.message;
-    }
+export function getUserFriendlyError(error: any): string {
+  // If no error object, return generic message
+  if (!error) {
+    return "Something went wrong. Please reload the page.";
   }
 
-  return "An unexpected error occurred. Please try again.";
-}
-
-/**
- * Extract full error details for logging (dev only)
- */
-export function extractErrorDetails(error: unknown): ApiError {
-  if (error && typeof error === "object") {
-    const err = error as {
-      response?: {
-        status?: number;
-        data?: {
-          message?: string;
-          error?: string;
-          code?: string;
-          details?: any;
-        };
-      };
-      message?: string;
-      code?: string;
-    };
-
-    return {
-      message:
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        "Unknown error",
-      code: err.response?.data?.code || err.code,
-      details: err.response?.data?.details,
-      status: err.response?.status,
-    };
+  // Network errors - backend not reachable
+  if (!error.response) {
+    return "Something went wrong. Please reload the page.";
   }
 
-  return {
-    message: "Unknown error",
-  };
-}
+  // Get backend message
+  const backendMessage = error.response?.data?.message || error.message || "";
 
-/**
- * Check if error is a network error (retryable)
- */
-export function isNetworkError(error: unknown): boolean {
-  if (error && typeof error === "object") {
-    const err = error as {
-      message?: string;
-      code?: string;
-      response?: { status?: number };
-      request?: any;
-    };
-
-    // Network errors typically have request but no response
-    if (err.request && !err.response) {
-      return true;
-    }
-
-    // Check for common network error messages
-    if (
-      err.message?.includes("Network Error") ||
-      err.message?.includes("timeout")
-    ) {
-      return true;
-    }
-
-    // Check for specific error codes
-    if (err.code === "ECONNABORTED" || err.code === "ENOTFOUND") {
-      return true;
-    }
+  // OTP-related errors
+  if (backendMessage.toLowerCase().includes("invalid otp")) {
+    return "Invalid OTP. Please check and try again.";
+  }
+  if (backendMessage.toLowerCase().includes("otp expired")) {
+    return "OTP has expired. Please request a new one.";
+  }
+  if (backendMessage.toLowerCase().includes("otp not found")) {
+    return "OTP not found. Please request a new one.";
   }
 
-  return false;
-}
-
-/**
- * Check if error is a client error (4xx - not retryable)
- */
-export function isClientError(error: unknown): boolean {
-  if (error && typeof error === "object") {
-    const err = error as { response?: { status?: number } };
-    const status = err.response?.status;
-    return status !== undefined && status >= 400 && status < 500;
+  // Authentication errors
+  if (backendMessage.toLowerCase().includes("invalid credentials")) {
+    return "Invalid email/phone or password. Please try again.";
+  }
+  if (
+    backendMessage.toLowerCase().includes("account not found") ||
+    backendMessage.toLowerCase().includes("register")
+  ) {
+    return "No account found. Please sign up first.";
+  }
+  if (
+    backendMessage.toLowerCase().includes("already exists") ||
+    backendMessage.toLowerCase().includes("already registered")
+  ) {
+    return "An account with this email or phone already exists. Please login instead.";
   }
 
-  return false;
-}
-
-/**
- * Check if error is a server error (5xx - retryable)
- */
-export function isServerError(error: unknown): boolean {
-  if (error && typeof error === "object") {
-    const err = error as { response?: { status?: number } };
-    const status = err.response?.status;
-    return status !== undefined && status >= 500;
+  // Password reset errors
+  if (
+    backendMessage.toLowerCase().includes("expired") &&
+    backendMessage.toLowerCase().includes("token")
+  ) {
+    return "Reset link is invalid or expired. Please request a new one.";
+  }
+  if (
+    backendMessage.toLowerCase().includes("invalid") &&
+    backendMessage.toLowerCase().includes("token")
+  ) {
+    return "Reset link is invalid. Please request a new one.";
   }
 
-  return false;
-}
+  // Rate limiting
+  if (
+    backendMessage.toLowerCase().includes("wait") ||
+    backendMessage.toLowerCase().includes("rate limit")
+  ) {
+    return backendMessage; // Keep rate limit messages as-is
+  }
 
-/**
- * Log error in development only
- */
-export function logError(error: unknown, context: string): void {
-  // Error logging removed for production
+  // Generic fallback - use backend message if it's user-friendly, otherwise generic
+  if (
+    backendMessage &&
+    backendMessage.length < 100 &&
+    !backendMessage.includes("status")
+  ) {
+    return backendMessage;
+  }
+
+  return "Something went wrong. Please try again.";
 }

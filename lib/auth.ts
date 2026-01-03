@@ -237,14 +237,21 @@ export async function loginInitiate(data: { phone: string; email: string }) {
 
     // Network error - backend not reachable
     if (!error.response) {
-      throw new Error(
-        "Cannot connect to server. Please check if backend is running."
-      );
+      throw new Error("Something went wrong. Please reload the page.");
     }
 
-    // API returned error
-    const message = error.response?.data?.message || "Failed to send OTP";
-    throw new Error(message);
+    // API returned error - show user-friendly message
+    const backendMessage = error.response?.data?.message || "";
+    let userMessage = "Failed to send OTP. Please try again.";
+
+    // Map backend messages to user-friendly ones
+    if (backendMessage.toLowerCase().includes("otp")) {
+      userMessage = "Failed to send OTP. Please try again.";
+    } else if (backendMessage.toLowerCase().includes("wait")) {
+      userMessage = backendMessage; // Keep rate limit messages as-is
+    }
+
+    throw new Error(userMessage);
   }
 }
 
@@ -277,12 +284,25 @@ export async function loginWithPassword(data: {
     return response.data;
   } catch (error: any) {
     if (!error.response) {
-      throw new Error(
-        "Cannot connect to server. Please check if backend is running."
-      );
+      throw new Error("Something went wrong. Please reload the page.");
     }
-    const message = error.response?.data?.message || "Login failed";
-    throw new Error(message);
+    // Show user-friendly error message
+    const backendMessage = error.response?.data?.message || "";
+    let userMessage = "Login failed. Please try again.";
+
+    if (
+      backendMessage.toLowerCase().includes("invalid") ||
+      backendMessage.toLowerCase().includes("credentials")
+    ) {
+      userMessage = "Invalid email/phone or password. Please try again.";
+    } else if (
+      backendMessage.toLowerCase().includes("not found") ||
+      backendMessage.toLowerCase().includes("register")
+    ) {
+      userMessage = "No account found. Please sign up first.";
+    }
+
+    throw new Error(userMessage);
   }
 }
 
@@ -307,13 +327,17 @@ export async function forgotPassword(email: string) {
       );
     }
     if (!error.response) {
-      throw new Error(
-        "Cannot connect to server. Please check if backend is running."
-      );
+      throw new Error("Something went wrong. Please reload the page.");
     }
-    const message =
-      error.response?.data?.message || "Failed to send reset email";
-    throw new Error(message);
+    // Show user-friendly error message
+    const backendMessage = error.response?.data?.message || "";
+    let userMessage = "Failed to send reset email. Please try again.";
+
+    if (backendMessage.toLowerCase().includes("not found")) {
+      userMessage = "No account found with this email.";
+    }
+
+    throw new Error(userMessage);
   }
 }
 
@@ -326,11 +350,20 @@ export async function resetPassword(token: string, password: string) {
     return response.data;
   } catch (error: any) {
     if (!error.response) {
-      throw new Error(
-        "Cannot connect to server. Please check if backend is running."
-      );
+      throw new Error("Something went wrong. Please reload the page.");
     }
-    const message = error.response?.data?.message || "Failed to reset password";
-    throw new Error(message);
+    // Show user-friendly error message
+    const backendMessage = error.response?.data?.message || "";
+    let userMessage = "Failed to reset password. Please try again.";
+
+    if (
+      backendMessage.toLowerCase().includes("expired") ||
+      backendMessage.toLowerCase().includes("invalid")
+    ) {
+      userMessage =
+        "Reset link is invalid or expired. Please request a new one.";
+    }
+
+    throw new Error(userMessage);
   }
 }
