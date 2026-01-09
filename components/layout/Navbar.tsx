@@ -67,7 +67,7 @@ export default function Navbar() {
           {/* LOGO */}
           <Link href="/" className="flex items-center gap-2">
             <Image
-              src="/images/eatrightlogo.webp"
+              src="/images/new_logo.webp"
               alt="Anubha Nutrition Clinic Logo"
               width={56}
               height={56}

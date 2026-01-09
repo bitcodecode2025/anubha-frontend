@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     siteName: "Anubha Nutrition",
     images: [
       {
-        url: "/images/anubha_logo.webp",
+        url: "/images/new_logo.webp",
         width: 1200,
         height: 630,
         alt: "Anubha Nutrition",
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Anubha Nutrition",
     description: "Your personalised nutrition & wellness partner.",
-    images: ["/images/anubha_logo.webp"],
+    images: ["/images/new_logo.webp"],
   },
   icons: {
     icon: [
@@ -87,8 +87,8 @@ export default function RootLayout({
     description:
       "Personalized nutrition consultations and diet plans by certified nutritionist Dt. Anubha Issac.",
     url: "https://anubhanutrition.in",
-    logo: "https://anubhanutrition.in/images/anubha_logo.webp",
-    image: "https://anubhanutrition.in/images/anubha_logo.webp",
+    logo: "https://anubhanutrition.in/images/new_logo.webp",
+    image: "https://anubhanutrition.in/images/new_logo.webp",
     telephone: "+919713885582",
     email: "anubhasnutritionclinic@gmail.com",
     address: {
