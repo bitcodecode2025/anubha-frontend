@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
+  ArrowLeft,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -63,6 +64,7 @@ export default function ManageTestimonialsPage() {
   // Refs for cleanup
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isInitialMount = useRef(true);
 
   // Form state
   const [name, setName] = useState("");
@@ -94,7 +96,17 @@ export default function ManageTestimonialsPage() {
       newIsActive: string,
       newQ: string
     ) => {
-      const params = new URLSearchParams(searchParams.toString());
+      // Use window.location.search to avoid circular dependency with searchParams
+      const currentParams = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams();
+      
+      // Preserve any other query params
+      currentParams.forEach((value, key) => {
+        if (key !== "page" && key !== "limit" && key !== "isActive" && key !== "q") {
+          params.set(key, value);
+        }
+      });
+      
       params.set("page", newPage.toString());
       params.set("limit", newLimit.toString());
 
@@ -109,16 +121,21 @@ export default function ManageTestimonialsPage() {
 
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
     },
-    [pathname, router, searchParams]
+    [pathname, router] // Removed searchParams to break circular dependency
   );
 
   // Debounce search query
   useEffect(() => {
+    // Skip on initial mount
+    if (isInitialMount.current) {
+      return;
+    }
+
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
     
-    // Reset to page 1 when search query changes
+    // Reset to page 1 when search query changes (but not on initial mount)
     if (page !== 1) {
       setPage(1);
     }
@@ -133,16 +150,43 @@ export default function ManageTestimonialsPage() {
     };
   }, [searchQuery]);
 
-  // Effect to update URL when state changes
+  // Effect to update URL when state changes (skip initial mount to prevent loops)
   useEffect(() => {
-    syncUrlWithState(page, limit, isActiveFilter, debouncedSearchQuery);
+    // Skip on initial mount - URL is already set correctly from URL params
+    if (isInitialMount.current) {
+      return;
+    }
+
+    // Only sync if values differ from current URL (use window.location to avoid dependency on searchParams)
+    const currentParams = new URLSearchParams(window.location.search);
+    const urlPage = Number(currentParams.get("page")) || 1;
+    const urlLimit = Number(currentParams.get("limit")) || 20;
+    const urlIsActive = currentParams.get("isActive") || "";
+    const urlQ = currentParams.get("q") || "";
+
+    if (
+      page !== urlPage ||
+      limit !== urlLimit ||
+      isActiveFilter !== urlIsActive ||
+      debouncedSearchQuery !== urlQ
+    ) {
+      syncUrlWithState(page, limit, isActiveFilter, debouncedSearchQuery);
+    }
   }, [page, limit, isActiveFilter, debouncedSearchQuery, syncUrlWithState]);
 
   // Fetch testimonials
   useEffect(() => {
     if (!user || user.role !== "ADMIN") return;
+    
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+    }
+    
     fetchTestimonials();
-  }, [user, page, limit, isActiveFilter, debouncedSearchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOTE: fetchTestimonials is a stable function that uses page, limit, isActiveFilter, debouncedSearchQuery
+    // We intentionally don't include it in deps to avoid issues
+  }, [user?.role, user?.id, page, limit, isActiveFilter, debouncedSearchQuery]);
 
   async function fetchTestimonials() {
     // Cancel previous request if it exists
@@ -336,6 +380,17 @@ export default function ManageTestimonialsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-emerald-50/40 py-8 px-4 sm:px-6">
       <div className="max-w-7xl mx-auto">
+        {/* Back to Dashboard */}
+        <div className="mb-6">
+          <button
+            onClick={() => router.push("/admin")}
+            className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Back to Dashboard</span>
+          </button>
+        </div>
+
         {/* Header */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
