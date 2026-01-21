@@ -50,7 +50,8 @@ export async function deleteFile(fileId: string): Promise<void> {
 
 export async function linkFilesToPatient(
   patientId: string,
-  fileIds: string[]
+  fileIds: string[],
+  appointmentId: string
 ): Promise<void> {
   try {
     if (!patientId) {
@@ -59,7 +60,10 @@ export async function linkFilesToPatient(
     if (!fileIds || fileIds.length === 0) {
       throw new Error("At least one file ID is required");
     }
-    await api.patch(`patients/${patientId}/files`, { fileIds });
+    if (!appointmentId) {
+      throw new Error("Appointment ID is required to scope files to appointments");
+    }
+    await api.patch(`patients/${patientId}/files`, { fileIds, appointmentId });
   } catch (error: any) {
     throw error;
   }

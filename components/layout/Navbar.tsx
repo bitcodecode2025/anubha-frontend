@@ -2,18 +2,23 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Menu, X, User, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/app/context/AuthContext";
+import { getAdminProfilePicture } from "@/lib/admin-profile";
 
 export default function Navbar() {
-  const { user, logout, loggingOut } = useAuth();
+  const { user, logout, loggingOut, loading } = useAuth();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [adminProfilePicture, setAdminProfilePicture] = useState<string | null>(
+    null
+  );
+  const fetchedUserIdRef = useRef<string | null>(null);
 
   // Prevent hydration mismatch
   useEffect(() => setMounted(true), []);
@@ -24,6 +29,59 @@ export default function Navbar() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // Fetch admin profile picture
+  useEffect(() => {
+    // Use stable primitive values (role and id) instead of the entire user object
+    // to prevent infinite re-renders when user object reference changes
+    const userId = user?.id;
+    const userRole = user?.role;
+
+    // Reset profile picture if user changed
+    if (fetchedUserIdRef.current !== null && fetchedUserIdRef.current !== userId) {
+      setAdminProfilePicture(null);
+    }
+
+    // Only fetch if:
+    // 1. Auth is not loading (wait for auth to complete)
+    // 2. User is admin
+    // 3. User ID exists
+    // 4. We haven't fetched for this user yet
+    if (!loading && userRole === "ADMIN" && userId && fetchedUserIdRef.current !== userId) {
+      let isMounted = true;
+      const currentUserId = userId; // Capture for closure
+      fetchedUserIdRef.current = currentUserId;
+
+      // Add a small delay to ensure authentication cookies are set
+      const timeoutId = setTimeout(() => {
+        getAdminProfilePicture()
+          .then((data) => {
+            // Only update state if component is still mounted and user hasn't changed
+            if (isMounted && fetchedUserIdRef.current === currentUserId) {
+              setAdminProfilePicture(data.profilePictureUrl);
+            }
+          })
+          .catch((error: any) => {
+            // Silently fail for 401 errors (expected during initial load or if not authenticated)
+            // Only log other errors
+            if (isMounted && fetchedUserIdRef.current === currentUserId) {
+              const status = error?.response?.status;
+              if (status !== 401) {
+                // Only log non-401 errors (401 is expected if user isn't authenticated yet)
+                console.error("Failed to load admin profile picture:", error?.response?.data?.message || error?.message);
+              }
+              // For 401, silently use default image (user might not be authenticated yet)
+            }
+          });
+      }, 100); // Small delay to ensure cookies are set
+
+      // Cleanup: prevent state updates after unmount or user change
+      return () => {
+        isMounted = false;
+        clearTimeout(timeoutId);
+      };
+    }
+  }, [loading, user?.role, user?.id]);
 
   if (!mounted) return null;
 
@@ -130,7 +188,9 @@ export default function Navbar() {
               >
                 {user?.role === "ADMIN" ? (
                   <Image
-                    src="/images/anubha_profile_hd.webp"
+                    src={
+                      adminProfilePicture || "/images/anubha_profile_hd.webp"
+                    }
                     alt="Admin Profile"
                     width={40}
                     height={40}

@@ -596,13 +596,13 @@ export default function UserAppointmentDetailsPage() {
             <ImageIcon className="w-5 h-5" />
             Uploaded Reports
           </h3>
-          {appointment.patient.files.length === 0 ? (
+          {appointment.files?.length === 0 ? (
             <div className="bg-slate-50 rounded-lg p-6 text-center text-slate-500">
               No reports uploaded
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {appointment.patient.files.map((file) => (
+              {(appointment.files || []).map((file) => (
                 <div
                   key={file.id}
                   className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-emerald-300 transition-colors cursor-pointer group"

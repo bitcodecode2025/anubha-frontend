@@ -171,17 +171,9 @@ export default function RecallPage() {
 
     try {
       const uploaded = await uploadFiles(fileArray);
-
-      // Link files to patient if patient exists
-      if (form.patientId && uploaded.length > 0) {
-        const fileIds = uploaded.map((f) => f.id);
-        try {
-          await linkFilesToPatient(form.patientId, fileIds);
-        } catch (err) {
-          // If link fails, files are still uploaded but not linked
-          // This is okay, they can be linked later
-        }
-      }
+      // CRITICAL: Do NOT link files to patient here.
+      // Reports must be scoped to a specific appointment (appointmentId).
+      // We'll link them after the appointment is created in submitRecall().
 
       setUploadedFiles((prev) => [...prev, ...uploaded]);
       toast.success(`Successfully uploaded ${uploaded.length} file(s)`);
@@ -265,10 +257,7 @@ export default function RecallPage() {
       // Link uploaded files to patient if any
       if (uploadedFiles.length > 0) {
         try {
-          await linkFilesToPatient(
-            form.patientId,
-            uploadedFiles.map((f) => f.id)
-          );
+          // Intentionally delayed until appointment exists (see below).
         } catch (fileError: any) {
           // Don't fail the entire submission if file linking fails
         }
@@ -330,6 +319,19 @@ export default function RecallPage() {
 
       if (!appointmentResponse.success || !appointmentResponse.data?.id) {
         throw new Error("Failed to create appointment");
+      }
+
+      // Link uploaded files to patient + appointment (strict scoping)
+      if (uploadedFiles.length > 0) {
+        try {
+          await linkFilesToPatient(
+            form.patientId,
+            uploadedFiles.map((f) => f.id),
+            appointmentResponse.data.id
+          );
+        } catch (fileError: any) {
+          // Don't fail the entire submission if file linking fails
+        }
       }
 
       // Create recall with entries and link to appointment

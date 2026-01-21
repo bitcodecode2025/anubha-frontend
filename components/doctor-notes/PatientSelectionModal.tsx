@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, User, Plus, Loader2, Phone } from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { getMyPatients, Patient } from "@/lib/patient";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -23,7 +24,12 @@ export default function PatientSelectionModal({
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(
     null
   );
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -61,7 +67,9 @@ export default function PatientSelectionModal({
     return digits.replace(/(\d{5})(\d{0,5})/, "$1 $2").trim();
   };
 
-  return (
+  if (!mounted) return null;
+
+  const modal = (
     <AnimatePresence>
       {isOpen && (
         <>
@@ -189,5 +197,9 @@ export default function PatientSelectionModal({
       )}
     </AnimatePresence>
   );
+
+  // IMPORTANT: render in a portal to avoid `position: fixed` being affected by transformed ancestors
+  // (framer-motion cards use transforms which can cause "fixed" elements to behave like "absolute").
+  return createPortal(modal, document.body);
 }
 

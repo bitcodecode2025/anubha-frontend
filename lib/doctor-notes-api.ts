@@ -281,12 +281,14 @@ export interface SaveDoctorNotesResponse {
 export interface DoctorNoteAttachment {
   id: string;
   fileName: string;
-  fileUrl: string | null;
+  filePath: string; // R2 object key or Cloudinary public ID - single identifier
+  fileUrl: string | null; // Optional: for backward compatibility with Cloudinary
   mimeType: string;
   sizeInBytes: number;
   fileCategory: string;
   section: string | null;
   createdAt: string;
+  provider?: string; // "S3" for R2, "CLOUDINARY" for Cloudinary
 }
 
 export interface GetDoctorNotesResponse {
@@ -325,6 +327,43 @@ export async function saveDoctorNotes(
   ) {
     dietChartFiles.forEach((file: File) => {
       formData.append("dietCharts", file);
+    });
+  }
+
+  // Handle pre/post consultation images
+  const preConsultationImages = (data.formData as any).prePostConsultationImages
+    ?.preConsultationImages;
+  if (
+    preConsultationImages &&
+    Array.isArray(preConsultationImages) &&
+    preConsultationImages.length > 0
+  ) {
+    preConsultationImages.forEach((file: File) => {
+      formData.append("preConsultationImages", file);
+    });
+  }
+
+  const postConsultationImages = (data.formData as any)
+    .prePostConsultationImages?.postConsultationImages;
+  if (
+    postConsultationImages &&
+    Array.isArray(postConsultationImages) &&
+    postConsultationImages.length > 0
+  ) {
+    postConsultationImages.forEach((file: File) => {
+      formData.append("postConsultationImages", file);
+    });
+  }
+
+  // Handle medical reports
+  const medicalReports = (data.formData as any).healthProfile?.medicalReports;
+  if (
+    medicalReports &&
+    Array.isArray(medicalReports) &&
+    medicalReports.length > 0
+  ) {
+    medicalReports.forEach((file: File) => {
+      formData.append("medicalReports", file);
     });
   }
 
@@ -413,6 +452,43 @@ export async function updateDoctorNotes(
     });
   }
 
+  // Handle pre/post consultation images
+  const preConsultationImages = (partialData as any).prePostConsultationImages
+    ?.preConsultationImages;
+  if (
+    preConsultationImages &&
+    Array.isArray(preConsultationImages) &&
+    preConsultationImages.length > 0
+  ) {
+    preConsultationImages.forEach((file: File) => {
+      formData.append("preConsultationImages", file);
+    });
+  }
+
+  const postConsultationImages = (partialData as any).prePostConsultationImages
+    ?.postConsultationImages;
+  if (
+    postConsultationImages &&
+    Array.isArray(postConsultationImages) &&
+    postConsultationImages.length > 0
+  ) {
+    postConsultationImages.forEach((file: File) => {
+      formData.append("postConsultationImages", file);
+    });
+  }
+
+  // Handle medical reports
+  const medicalReports = (partialData as any).healthProfile?.medicalReports;
+  if (
+    medicalReports &&
+    Array.isArray(medicalReports) &&
+    medicalReports.length > 0
+  ) {
+    medicalReports.forEach((file: File) => {
+      formData.append("medicalReports", file);
+    });
+  }
+
   try {
     // When using FormData, axios automatically sets Content-Type with boundary
     // Don't manually set Content-Type header - axios handles it automatically
@@ -481,6 +557,40 @@ export async function getDoctorNotes(
 }
 
 /**
+ * Get signed URL for viewing a doctor note attachment (R2 stored files)
+ *
+ * Calls the backend API to generate a short-lived signed URL for private R2 objects.
+ * URLs expire after 7 minutes and are generated on-demand.
+ *
+ * @param attachmentId - Attachment ID
+ * @returns Signed URL and file metadata
+ */
+export async function getDoctorNoteAttachmentViewUrl(
+  attachmentId: string
+): Promise<{
+  success: boolean;
+  signedUrl?: string;
+  fileName?: string;
+  mimeType?: string;
+  expiresIn?: number;
+  error?: string;
+}> {
+  try {
+    const res = await api.get<{
+      success: boolean;
+      signedUrl: string;
+      fileName: string;
+      mimeType: string;
+      expiresIn: number;
+      error?: string;
+    }>(`admin/doctor-notes/attachment/${attachmentId}/view`);
+    return res.data;
+  } catch (error: any) {
+    throw error;
+  }
+}
+
+/**
  * Delete a doctor note attachment (PDF)
  */
 export async function deleteDoctorNoteAttachment(
@@ -493,6 +603,43 @@ export async function deleteDoctorNoteAttachment(
       message?: string;
       error?: string;
     }>(`admin/doctor-notes/attachment/${attachmentId}`);
+    return res.data;
+  } catch (error: any) {
+    throw error;
+  }
+}
+
+/**
+ * Send Doctor Notes PDFs via email
+ *
+ * @param appointmentId - Appointment ID
+ * @param options - Email options
+ * @param options.usePatientEmail - If true, use patient's email from appointment
+ * @param options.customEmail - Custom email address (required if usePatientEmail is false)
+ * @returns Success response
+ */
+export async function sendDoctorNotesEmail(
+  appointmentId: string,
+  options: {
+    usePatientEmail?: boolean;
+    customEmail?: string;
+  }
+): Promise<{ success: boolean; message?: string; error?: string }> {
+  try {
+    const body: any = {};
+    if (options.usePatientEmail) {
+      body.usePatientEmail = true;
+    } else if (options.customEmail) {
+      body.toEmail = options.customEmail;
+    } else {
+      throw new Error("Either usePatientEmail or customEmail must be provided");
+    }
+
+    const res = await api.post<{
+      success: boolean;
+      message?: string;
+      error?: string;
+    }>(`admin/doctor-notes/${appointmentId}/send-email`, body);
     return res.data;
   } catch (error: any) {
     throw error;

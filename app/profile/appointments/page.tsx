@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import {
   getMyAppointments,
@@ -13,6 +13,7 @@ import {
   MapPin,
   Video,
   ChevronLeft,
+  ChevronRight,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -25,9 +26,38 @@ import { motion } from "framer-motion";
 
 export default function AppointmentsPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
+
+  // Initialize pagination from URL
+  const initialPage = Number(searchParams.get("page")) || 1;
+  const initialLimit = Number(searchParams.get("limit")) || 20;
+
   const [appointments, setAppointments] = useState<UserAppointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(Math.max(1, initialPage));
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(
+    Math.min(200, Math.max(1, initialLimit || 20))
+  );
+
+  // Helper to sync URL with current pagination state
+  const syncUrlWithState = useCallback(
+    (newPage: number, newLimit: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", newPage.toString());
+      params.set("limit", newLimit.toString());
+
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  // Effect to update URL when state changes
+  useEffect(() => {
+    syncUrlWithState(page, limit);
+  }, [page, limit, syncUrlWithState]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -41,13 +71,14 @@ export default function AppointmentsPage() {
     }
 
     fetchAppointments();
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, page, limit]);
 
   async function fetchAppointments() {
     setLoading(true);
     try {
-      const response = await getMyAppointments();
+      const response = await getMyAppointments({ page, limit });
       setAppointments(response.appointments || []);
+      setTotal(response.total || 0);
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message || "Failed to load appointments"
@@ -260,6 +291,91 @@ export default function AppointmentsPage() {
                   </div>
                 </motion.div>
               ))}
+
+              {/* Pagination */}
+              {total > limit && (
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/60 backdrop-blur-xl rounded-xl p-4 border border-white/40">
+                  {/* Page Size Selector */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-slate-700 font-medium">
+                      Page Size:
+                    </label>
+                    <select
+                      value={limit}
+                      onChange={(e) => {
+                        setLimit(Number(e.target.value));
+                        setPage(1); // Reset to page 1 when limit changes
+                      }}
+                      className="px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                    >
+                      <option value="10">10</option>
+                      <option value="20">20</option>
+                      <option value="50">50</option>
+                    </select>
+                  </div>
+
+                  {/* Pagination Info */}
+                  <div className="text-sm text-slate-600">
+                    Showing {(page - 1) * limit + 1} to{" "}
+                    {Math.min(page * limit, total)} of {total} appointments
+                  </div>
+
+                  {/* Pagination Controls */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="p-2 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+
+                    {/* Page Numbers */}
+                    <div className="flex items-center gap-1">
+                      {Array.from(
+                        { length: Math.min(5, Math.ceil(total / limit)) },
+                        (_, i) => {
+                          const totalPages = Math.ceil(total / limit);
+                          let pageNum: number;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (page <= 3) {
+                            pageNum = i + 1;
+                          } else if (page >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = page - 2 + i;
+                          }
+
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setPage(pageNum)}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                page === pageNum
+                                  ? "bg-emerald-600 text-white"
+                                  : "border border-slate-300 hover:bg-slate-50 text-slate-700"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        setPage((p) => Math.min(Math.ceil(total / limit), p + 1))
+                      }
+                      disabled={page >= Math.ceil(total / limit)}
+                      className="p-2 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </motion.div>

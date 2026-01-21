@@ -2,15 +2,28 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Save, ChevronDown, ChevronUp, Upload, FileText, ExternalLink, X as XIcon } from "lucide-react";
+import {
+  Loader2,
+  Save,
+  ChevronDown,
+  ChevronUp,
+  Upload,
+  FileText,
+  ExternalLink,
+  X as XIcon,
+  Image as ImageIcon,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import {
   DoctorNotesFormData,
   saveDoctorNotes,
   getDoctorNotes,
   updateDoctorNotes,
+  getDoctorNoteAttachmentViewUrl,
+  deleteDoctorNoteAttachment,
 } from "@/lib/doctor-notes-api";
-import { uploadPDFFiles, type UploadedPDF } from "@/lib/pdf-upload";
+// NOTE: Diet chart PDFs (Section 7) are uploaded to R2 through the main doctor notes
+// multipart save endpoint (multer field: `dietCharts`). Do not auto-upload to Cloudinary.
 import AppointmentPreview from "./AppointmentPreview";
 import { AppointmentDetails } from "@/lib/appointments-admin";
 import { useDoctorNotes } from "@/app/context/DoctorNotesContext";
@@ -163,7 +176,7 @@ export default function DoctorNotesForm({
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
   async function handleSubmit(isDraft: boolean = false) {
@@ -181,7 +194,11 @@ export default function DoctorNotesForm({
       if (oversizedFiles.length > 0) {
         const errorMessages = oversizedFiles.map(
           (file: File) =>
-            `${file.name}: File too large! Maximum allowed size is 10MB. (${formatFileSize(file.size)})`
+            `${
+              file.name
+            }: File too large! Maximum allowed size is 10MB. (${formatFileSize(
+              file.size
+            )})`
         );
         errorMessages.forEach((msg) => {
           toast.error(msg, {
@@ -248,12 +265,15 @@ export default function DoctorNotesForm({
       if (onSave) onSave();
     } catch (error: any) {
       const duration = saveStartTime ? Date.now() - saveStartTime : 0;
-      
+
       // Extract error message from various possible formats
       let errorMessage = "Failed to save doctor notes";
-      
+
       // Check for validation errors (array of error messages)
-      if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+      if (
+        error?.response?.data?.errors &&
+        Array.isArray(error.response.data.errors)
+      ) {
         errorMessage = error.response.data.errors.join(". ");
       } else if (error?.response?.data?.error) {
         errorMessage = error.response.data.error;
@@ -266,7 +286,7 @@ export default function DoctorNotesForm({
       } else if (error?.response?.statusText) {
         errorMessage = `${error.response.status} ${error.response.statusText}`;
       }
-      
+
       // Show error toast with better formatting
       toast.error(errorMessage, {
         duration: 6000,
@@ -558,6 +578,7 @@ export default function DoctorNotesForm({
             formData={formData}
             updateFormData={updateFormData}
             getFormValue={getFormValue}
+            appointmentId={appointmentId}
           />
         </Section>
 
@@ -586,6 +607,21 @@ export default function DoctorNotesForm({
             formData={formData}
             updateFormData={updateFormData}
             getFormValue={getFormValue}
+          />
+        </Section>
+
+        {/* Section 9: Pre & Post Consultation Images */}
+        <Section
+          title="SECTION 9 — Pre & Post Consultation Images"
+          sectionId="section9"
+          isOpen={openSections.has("section9")}
+          onToggle={() => toggleSection("section9")}
+        >
+          <PrePostConsultationImagesSection
+            formData={formData}
+            updateFormData={updateFormData}
+            getFormValue={getFormValue}
+            appointmentId={appointmentId}
           />
         </Section>
 
@@ -744,10 +780,13 @@ function Input({
   placeholder,
 }: InputProps) {
   // For number inputs, preserve 0 as a valid value (don't convert to empty string)
-  const displayValue = type === "number" 
-    ? (value === undefined || value === null ? "" : value)
-    : (value || "");
-  
+  const displayValue =
+    type === "number"
+      ? value === undefined || value === null
+        ? ""
+        : value
+      : value || "";
+
   return (
     <div className="input-group">
       <label className="block font-semibold mb-2 text-[#4A4842] text-sm sm:text-base">
@@ -2991,7 +3030,12 @@ function FoodFrequencySection({ formData, updateFormData, getFormValue }: any) {
   );
 }
 
-function HealthProfileSection({ formData, updateFormData, getFormValue }: any) {
+function HealthProfileSection({
+  formData,
+  updateFormData,
+  getFormValue,
+  appointmentId,
+}: any) {
   const healthProfile = getFormValue(["healthProfile"]) || {};
   const conditions = [
     "High B.P",
@@ -3156,6 +3200,1078 @@ function HealthProfileSection({ formData, updateFormData, getFormValue }: any) {
           />
         </div>
       </SubSection>
+
+      {/* Medical Reports Upload Section */}
+      <div className="md:col-span-2 mt-6 pt-6 border-t-2 border-emerald-200">
+        <div className="input-group">
+          <label className="block font-semibold mb-3 text-slate-700 text-sm sm:text-base">
+            Upload Medical Reports
+          </label>
+          <p className="text-xs text-slate-500 mb-3">
+            Max 10 files · PDF, PNG, JPG, JPEG · 10MB per file
+          </p>
+          <MedicalReportsUpload
+            appointmentId={appointmentId || ""}
+            updateFormData={updateFormData}
+            getFormValue={getFormValue}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Pre & Post Consultation Images Section
+function PrePostConsultationImagesSection({
+  formData,
+  updateFormData,
+  getFormValue,
+  appointmentId,
+}: {
+  formData: any;
+  updateFormData: any;
+  getFormValue: any;
+  appointmentId: string;
+}) {
+  const prePostConsultationImages =
+    getFormValue(["prePostConsultationImages"]) || {};
+
+  const [preImages, setPreImages] = useState<File[]>([]);
+  const [postImages, setPostImages] = useState<File[]>([]);
+  const [uploadedPreImages, setUploadedPreImages] = useState<any[]>(
+    prePostConsultationImages.uploadedPreImages || []
+  );
+  const [uploadedPostImages, setUploadedPostImages] = useState<any[]>(
+    prePostConsultationImages.uploadedPostImages || []
+  );
+
+  const [preImageErrors, setPreImageErrors] = useState<{
+    [fileName: string]: string;
+  }>({});
+  const [postImageErrors, setPostImageErrors] = useState<{
+    [fileName: string]: string;
+  }>({});
+
+  const [dragActivePre, setDragActivePre] = useState(false);
+  const [dragActivePost, setDragActivePost] = useState(false);
+  const [isUploadingPre, setIsUploadingPre] = useState(false);
+  const [isUploadingPost, setIsUploadingPost] = useState(false);
+
+  const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+  const MAX_IMAGES_PER_CATEGORY = 10;
+
+  useEffect(() => {
+    // Update form data when local image files change
+    updateFormData(
+      ["prePostConsultationImages", "preConsultationImages"],
+      preImages
+    );
+  }, [preImages]);
+
+  useEffect(() => {
+    updateFormData(
+      ["prePostConsultationImages", "postConsultationImages"],
+      postImages
+    );
+  }, [postImages]);
+
+  useEffect(() => {
+    // Initialize uploaded images from formData when it loads
+    const loadExistingImages = async () => {
+      try {
+        const response = await getDoctorNotes(appointmentId);
+        if (response.success && response.doctorNotes?.attachments) {
+          const preImages = response.doctorNotes.attachments.filter(
+            (att: any) =>
+              att.fileCategory === "IMAGE" &&
+              att.section === "PrePostConsultation" &&
+              !att.isArchived &&
+              att.filePath?.includes("/pre/")
+          );
+          const postImages = response.doctorNotes.attachments.filter(
+            (att: any) =>
+              att.fileCategory === "IMAGE" &&
+              att.section === "PrePostConsultation" &&
+              !att.isArchived &&
+              att.filePath?.includes("/post/")
+          );
+
+          setUploadedPreImages(
+            preImages.map((img: any) => ({
+              id: img.id,
+              fileName: img.fileName,
+              filePath: img.filePath,
+              mimeType: img.mimeType,
+              sizeInBytes: img.sizeInBytes,
+            }))
+          );
+          setUploadedPostImages(
+            postImages.map((img: any) => ({
+              id: img.id,
+              fileName: img.fileName,
+              filePath: img.filePath,
+              mimeType: img.mimeType,
+              sizeInBytes: img.sizeInBytes,
+            }))
+          );
+        }
+      } catch (error) {
+        // Ignore errors - images might not exist yet
+      }
+    };
+
+    if (appointmentId) {
+      loadExistingImages();
+    }
+  }, [appointmentId]);
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+  };
+
+  const validateAndAddImages = (
+    files: File[],
+    currentImages: File[],
+    uploadedImages: any[],
+    setImageState: React.Dispatch<React.SetStateAction<File[]>>,
+    setImageErrors: React.Dispatch<
+      React.SetStateAction<{ [fileName: string]: string }>
+    >,
+    isPre: boolean
+  ) => {
+    const errors: { [fileName: string]: string } = {};
+    const validFiles: File[] = [];
+
+    const totalFiles =
+      currentImages.length + uploadedImages.length + files.length;
+    if (totalFiles > MAX_IMAGES_PER_CATEGORY) {
+      toast.error(
+        `Cannot add ${files.length} image(s). Maximum ${MAX_IMAGES_PER_CATEGORY} images allowed in total.`,
+        {
+          duration: 5000,
+        }
+      );
+      return;
+    }
+
+    files.forEach((file) => {
+      const allowedTypes = ["image/png", "image/jpeg", "image/jpg"];
+      if (!allowedTypes.includes(file.type.toLowerCase())) {
+        errors[file.name] = "Only PNG, JPG, JPEG images are allowed";
+        return;
+      }
+
+      if (file.size > MAX_IMAGE_SIZE) {
+        errors[
+          file.name
+        ] = `File too large! Max size is 10MB. (${formatFileSize(file.size)})`;
+        return;
+      }
+
+      if (
+        currentImages.some((f) => f.name === file.name && f.size === file.size)
+      ) {
+        errors[file.name] = "This image is already added";
+        return;
+      }
+
+      if (
+        uploadedImages.some(
+          (img) => img.fileName === file.name && img.sizeInBytes === file.size
+        )
+      ) {
+        errors[file.name] = "This image is already uploaded";
+        return;
+      }
+
+      validFiles.push(file);
+    });
+
+    if (Object.keys(errors).length > 0) {
+      setImageErrors((prev) => ({ ...prev, ...errors }));
+      Object.entries(errors).forEach(([fileName, error]) => {
+        toast.error(`${fileName}: ${error}`, { duration: 5000 });
+      });
+    }
+
+    if (validFiles.length > 0) {
+      setImageState((prev) =>
+        [...prev, ...validFiles].slice(0, MAX_IMAGES_PER_CATEGORY)
+      );
+      setImageErrors({});
+    }
+  };
+
+  const handleFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    isPre: boolean
+  ) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      if (isPre) {
+        validateAndAddImages(
+          filesArray,
+          preImages,
+          uploadedPreImages,
+          setPreImages,
+          setPreImageErrors,
+          true
+        );
+      } else {
+        validateAndAddImages(
+          filesArray,
+          postImages,
+          uploadedPostImages,
+          setPostImages,
+          setPostImageErrors,
+          false
+        );
+      }
+      e.target.value = "";
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, isPre: boolean) => {
+    e.preventDefault();
+    setDragActivePre(false);
+    setDragActivePost(false);
+    if (e.dataTransfer.files) {
+      const filesArray = Array.from(e.dataTransfer.files);
+      if (isPre) {
+        validateAndAddImages(
+          filesArray,
+          preImages,
+          uploadedPreImages,
+          setPreImages,
+          setPreImageErrors,
+          true
+        );
+      } else {
+        validateAndAddImages(
+          filesArray,
+          postImages,
+          uploadedPostImages,
+          setPostImages,
+          setPostImageErrors,
+          false
+        );
+      }
+    }
+  };
+
+  const removeLocalImage = (index: number, isPre: boolean) => {
+    if (isPre) {
+      setPreImages((prev) => prev.filter((_, i) => i !== index));
+    } else {
+      setPostImages((prev) => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const removeUploadedImage = async (
+    attachmentId: string,
+    fileName: string,
+    isPre: boolean
+  ) => {
+    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) {
+      return;
+    }
+
+    const setLoadingState = isPre ? setIsUploadingPre : setIsUploadingPost;
+    setLoadingState(true);
+    try {
+      const result = await deleteDoctorNoteAttachment(attachmentId);
+      if (result.success) {
+        toast.success("Image deleted successfully", { duration: 3000 });
+        if (isPre) {
+          setUploadedPreImages((prev) =>
+            prev.filter((img) => img.id !== attachmentId)
+          );
+        } else {
+          setUploadedPostImages((prev) =>
+            prev.filter((img) => img.id !== attachmentId)
+          );
+        }
+      } else {
+        throw new Error(result.error || "Failed to delete image");
+      }
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error ||
+          error?.message ||
+          "Failed to delete image",
+        {
+          duration: 5000,
+        }
+      );
+    } finally {
+      setLoadingState(false);
+    }
+  };
+
+  // Thumbnail component for uploaded images (fetches signed URL on demand)
+  const PrePostImageThumbnail = ({
+    image,
+    onRemove,
+  }: {
+    image: any;
+    onRemove: () => void;
+  }) => {
+    const [signedUrl, setSignedUrl] = useState<string | null>(null);
+    const [loadingUrl, setLoadingUrl] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+      const fetchSignedUrl = async () => {
+        if (!image.filePath) {
+          setError("Image path missing.");
+          setLoadingUrl(false);
+          return;
+        }
+        try {
+          setLoadingUrl(true);
+          const result = await getDoctorNoteAttachmentViewUrl(image.id);
+          if (result.success && result.signedUrl) {
+            setSignedUrl(result.signedUrl);
+          } else {
+            setError(result.error || "Failed to load image.");
+          }
+        } catch (err: any) {
+          setError(err?.response?.data?.error || "Failed to load image.");
+        } finally {
+          setLoadingUrl(false);
+        }
+      };
+      fetchSignedUrl();
+    }, [image.id, image.filePath]);
+
+    return (
+      <div className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-50 shadow-sm">
+        {loadingUrl ? (
+          <div className="flex items-center justify-center h-32 bg-slate-100">
+            <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-32 bg-red-50 text-red-700 text-xs p-2 text-center">
+            Error: {error}
+          </div>
+        ) : signedUrl ? (
+          <img
+            src={signedUrl}
+            alt={image.fileName}
+            className="w-full h-32 object-cover"
+          />
+        ) : (
+          <div className="flex items-center justify-center h-32 bg-slate-100 text-slate-500 text-xs p-2 text-center">
+            No preview
+          </div>
+        )}
+        <div
+          className="p-2 text-xs text-slate-600 truncate"
+          title={image.fileName}
+        >
+          {image.fileName}
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white p-1 rounded-full transition opacity-0 group-hover:opacity-100 z-10"
+          title="Remove image"
+        >
+          <XIcon className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  };
+
+  const ImageUploadArea = ({
+    title,
+    files,
+    uploadedFiles,
+    isPre,
+    dragActive,
+    isUploading,
+    handleFileChange,
+    handleDrop,
+    removeLocalImage,
+    removeUploadedImage,
+  }: {
+    title: string;
+    files: File[];
+    uploadedFiles: any[];
+    isPre: boolean;
+    dragActive: boolean;
+    isUploading: boolean;
+    handleFileChange: (
+      e: React.ChangeEvent<HTMLInputElement>,
+      isPre: boolean
+    ) => void;
+    handleDrop: (e: React.DragEvent<HTMLDivElement>, isPre: boolean) => void;
+    removeLocalImage: (index: number, isPre: boolean) => void;
+    removeUploadedImage: (
+      attachmentId: string,
+      fileName: string,
+      isPre: boolean
+    ) => Promise<void>;
+  }) => (
+    <div className="flex-1 min-w-0">
+      <h4 className="text-lg font-semibold text-slate-800 mb-4">{title}</h4>
+      <div className="input-group">
+        <p className="text-xs text-slate-500 mb-3">
+          Max {MAX_IMAGES_PER_CATEGORY} files · 10MB per file · JPG, JPEG, PNG
+          only
+        </p>
+
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            const totalFiles = files.length + uploadedFiles.length;
+            if (totalFiles < MAX_IMAGES_PER_CATEGORY && !isUploading) {
+              if (isPre) setDragActivePre(true);
+              else setDragActivePost(true);
+            }
+          }}
+          onDragLeave={() => {
+            if (isPre) setDragActivePre(false);
+            else setDragActivePost(false);
+          }}
+          onDrop={(e) => handleDrop(e, isPre)}
+          className={`
+            border-2 rounded-xl p-5 text-center transition-all cursor-pointer
+            ${
+              dragActive
+                ? "border-emerald-600 bg-emerald-50"
+                : "border-gray-300 bg-white hover:border-emerald-400"
+            }
+            ${
+              files.length + uploadedFiles.length >= MAX_IMAGES_PER_CATEGORY ||
+              isUploading
+                ? "opacity-50 pointer-events-none"
+                : ""
+            }
+          `}
+        >
+          <label
+            htmlFor={`image-upload-${isPre ? "pre" : "post"}`}
+            className="flex flex-col items-center gap-2 cursor-pointer"
+          >
+            <span className="p-3 bg-emerald-50 rounded-full text-emerald-700">
+              {isUploading ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : (
+                <Upload className="w-6 h-6" />
+              )}
+            </span>
+            <div className="text-sm text-slate-600 font-medium">
+              {isUploading
+                ? "Uploading..."
+                : files.length + uploadedFiles.length >= MAX_IMAGES_PER_CATEGORY
+                ? `Maximum ${MAX_IMAGES_PER_CATEGORY} files reached`
+                : "Tap to upload or drag images here"}
+            </div>
+            <div className="text-xs text-slate-400">
+              JPG, JPEG, PNG only · Max 10MB per file
+            </div>
+            {files.length + uploadedFiles.length > 0 && (
+              <div className="text-xs text-slate-500 font-medium mt-1">
+                {files.length + uploadedFiles.length} /{" "}
+                {MAX_IMAGES_PER_CATEGORY} files
+              </div>
+            )}
+            <input
+              id={`image-upload-${isPre ? "pre" : "post"}`}
+              type="file"
+              accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+              multiple
+              className="hidden"
+              onChange={(e) => handleFileChange(e, isPre)}
+              disabled={
+                files.length + uploadedFiles.length >=
+                  MAX_IMAGES_PER_CATEGORY || isUploading
+              }
+            />
+          </label>
+        </div>
+
+        {/* Local Files Preview */}
+        {files.length > 0 && (
+          <div className="mt-4">
+            <p className="text-sm font-medium text-slate-700 mb-3">
+              {isUploading
+                ? "Uploading Files..."
+                : `Selected Files (${files.length})`}
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {files.map((file, index) => (
+                <div
+                  key={index}
+                  className="relative group rounded-lg overflow-hidden border border-blue-200 bg-blue-50 shadow-sm"
+                >
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="w-full h-24 object-cover"
+                  />
+                  <div
+                    className="p-2 text-xs text-blue-700 truncate"
+                    title={file.name}
+                  >
+                    {file.name}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeLocalImage(index, isPre)}
+                    className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white p-1 rounded-full transition opacity-0 group-hover:opacity-100 z-10"
+                    title="Remove image"
+                  >
+                    <XIcon className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Uploaded Files Preview */}
+        {uploadedFiles.length > 0 && (
+          <div className="mt-4">
+            <p className="text-sm font-medium text-slate-700 mb-3">
+              Uploaded Images ({uploadedFiles.length})
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {uploadedFiles.map((image) => (
+                <PrePostImageThumbnail
+                  key={image.id}
+                  image={image}
+                  onRemove={() =>
+                    removeUploadedImage(image.id, image.fileName, isPre)
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+        <ImageUploadArea
+          title="Pre-Consultation Images (Before)"
+          files={preImages}
+          uploadedFiles={uploadedPreImages.filter((img: any) =>
+            img.filePath?.includes("/pre/")
+          )}
+          isPre={true}
+          dragActive={dragActivePre}
+          isUploading={isUploadingPre}
+          handleFileChange={handleFileChange}
+          handleDrop={handleDrop}
+          removeLocalImage={removeLocalImage}
+          removeUploadedImage={removeUploadedImage}
+        />
+        <ImageUploadArea
+          title="Post-Consultation Images (After)"
+          files={postImages}
+          uploadedFiles={uploadedPostImages.filter((img: any) =>
+            img.filePath?.includes("/post/")
+          )}
+          isPre={false}
+          dragActive={dragActivePost}
+          isUploading={isUploadingPost}
+          handleFileChange={handleFileChange}
+          handleDrop={handleDrop}
+          removeLocalImage={removeLocalImage}
+          removeUploadedImage={removeUploadedImage}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Medical Reports Upload Component
+function MedicalReportsUpload({
+  appointmentId,
+  updateFormData,
+  getFormValue,
+}: {
+  appointmentId: string;
+  updateFormData: any;
+  getFormValue: any;
+}) {
+  const [reportFiles, setReportFiles] = React.useState<File[]>([]);
+  const [uploadedReports, setUploadedReports] = React.useState<any[]>([]);
+  const [fileErrors, setFileErrors] = React.useState<{
+    [fileName: string]: string;
+  }>({});
+  const [dragActive, setDragActive] = React.useState(false);
+  const [isUploading, setIsUploading] = React.useState(false);
+
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const MAX_REPORTS = 10;
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+  };
+
+  // Load existing reports from attachments on mount
+  React.useEffect(() => {
+    const loadExistingReports = async () => {
+      try {
+        const response = await getDoctorNotes(appointmentId);
+        if (response.success && response.doctorNotes?.attachments) {
+          const reports = response.doctorNotes.attachments.filter(
+            (att: any) =>
+              (att.fileCategory === "LAB_REPORT" ||
+                att.fileCategory === "OTHER") &&
+              att.section === "HealthProfile" &&
+              !att.isArchived &&
+              att.filePath?.includes("/reports/")
+          );
+
+          setUploadedReports(
+            reports.map((report: any) => ({
+              id: report.id,
+              fileName: report.fileName,
+              filePath: report.filePath,
+              mimeType: report.mimeType,
+              sizeInBytes: report.sizeInBytes,
+            }))
+          );
+        }
+      } catch (error) {
+        // Ignore errors - reports might not exist yet
+      }
+    };
+
+    if (appointmentId) {
+      loadExistingReports();
+    }
+  }, [appointmentId]);
+
+  const validateAndAddReports = async (files: File[]) => {
+    const errors: { [fileName: string]: string } = {};
+    const validFiles: File[] = [];
+
+    // Check total files limit
+    const totalFiles =
+      reportFiles.length + uploadedReports.length + files.length;
+    if (totalFiles > MAX_REPORTS) {
+      toast.error(
+        `Cannot add ${files.length} file(s). Maximum ${MAX_REPORTS} reports allowed.`,
+        { duration: 5000 }
+      );
+      return;
+    }
+
+    files.forEach((file) => {
+      // Validate file type
+      const allowedTypes = [
+        "application/pdf",
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+      ];
+      const fileType = file.type.toLowerCase();
+      const extension = file.name.split(".").pop()?.toLowerCase() || "";
+
+      if (
+        !allowedTypes.includes(fileType) &&
+        !["pdf", "png", "jpg", "jpeg"].includes(extension)
+      ) {
+        errors[file.name] = "Only PDF, PNG, JPG, and JPEG files are allowed";
+        return;
+      }
+
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        errors[
+          file.name
+        ] = `File too large! Maximum allowed size is 10MB. (${formatFileSize(
+          file.size
+        )})`;
+        return;
+      }
+
+      // Check if file already exists
+      if (
+        reportFiles.some((f) => f.name === file.name && f.size === file.size)
+      ) {
+        errors[file.name] = "This file is already added";
+        return;
+      }
+
+      if (
+        uploadedReports.some(
+          (report) =>
+            report.fileName === file.name && report.sizeInBytes === file.size
+        )
+      ) {
+        errors[file.name] = "This file is already uploaded";
+        return;
+      }
+
+      validFiles.push(file);
+    });
+
+    if (Object.keys(errors).length > 0) {
+      setFileErrors((prev) => ({ ...prev, ...errors }));
+      Object.entries(errors).forEach(([fileName, error]) => {
+        toast.error(`${fileName}: ${error}`, { duration: 5000 });
+      });
+      return;
+    }
+
+    if (validFiles.length > 0) {
+      const updatedFiles = [...reportFiles, ...validFiles].slice(
+        0,
+        MAX_REPORTS
+      );
+      setReportFiles(updatedFiles);
+      updateFormData(["healthProfile", "medicalReports"], updatedFiles);
+      setFileErrors({});
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      validateAndAddReports(files);
+    }
+    e.target.value = ""; // Reset input
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      validateAndAddReports(files);
+    }
+  };
+
+  const removeReport = (index: number) => {
+    const updatedFiles = reportFiles.filter((_, i) => i !== index);
+    setReportFiles(updatedFiles);
+    updateFormData(["healthProfile", "medicalReports"], updatedFiles);
+  };
+
+  const removeUploadedReport = async (index: number) => {
+    const reportToRemove = uploadedReports[index];
+    try {
+      await deleteDoctorNoteAttachment(reportToRemove.id);
+      toast.success("Report removed successfully");
+      setUploadedReports((prev) => prev.filter((_, i) => i !== index));
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error ||
+          "Failed to remove report. Please try again."
+      );
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Drag & Drop Area */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (
+            reportFiles.length + uploadedReports.length < MAX_REPORTS &&
+            !isUploading
+          ) {
+            setDragActive(true);
+          }
+        }}
+        onDragLeave={() => setDragActive(false)}
+        onDrop={handleDrop}
+        className={`
+          border-2 rounded-xl p-5 text-center transition-all cursor-pointer
+          ${
+            dragActive
+              ? "border-emerald-600 bg-emerald-50"
+              : "border-gray-300 bg-white hover:border-emerald-400"
+          }
+          ${
+            reportFiles.length + uploadedReports.length >= MAX_REPORTS ||
+            isUploading
+              ? "opacity-50 pointer-events-none"
+              : ""
+          }
+        `}
+      >
+        <label
+          htmlFor="medical-reports-upload"
+          className="flex flex-col items-center gap-2 cursor-pointer"
+        >
+          <span className="p-3 bg-emerald-50 rounded-full text-emerald-700">
+            {isUploading ? (
+              <Loader2 className="w-6 h-6 animate-spin" />
+            ) : (
+              <Upload className="w-6 h-6" />
+            )}
+          </span>
+          <div className="text-sm text-slate-600 font-medium">
+            {isUploading
+              ? "Uploading..."
+              : reportFiles.length + uploadedReports.length >= MAX_REPORTS
+              ? `Maximum ${MAX_REPORTS} files reached`
+              : "Tap to upload or drag files here"}
+          </div>
+          <div className="text-xs text-slate-400">
+            PDF, PNG, JPG, JPEG · Max 10MB per file
+          </div>
+          {reportFiles.length + uploadedReports.length > 0 && (
+            <div className="text-xs text-slate-500 font-medium mt-1">
+              {reportFiles.length + uploadedReports.length} / {MAX_REPORTS}{" "}
+              files
+            </div>
+          )}
+
+          <input
+            id="medical-reports-upload"
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/jpeg,image/jpg,image/png"
+            multiple
+            className="hidden"
+            onChange={handleFileChange}
+            disabled={
+              reportFiles.length + uploadedReports.length >= MAX_REPORTS ||
+              isUploading
+            }
+          />
+        </label>
+      </div>
+
+      {/* Local Files Preview */}
+      {reportFiles.length > 0 && (
+        <div className="mt-4">
+          <p className="text-sm font-medium text-slate-700 mb-3">
+            Selected Files ({reportFiles.length})
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {reportFiles.map((file, index) => {
+              const isImage =
+                file.type.startsWith("image/") ||
+                ["png", "jpg", "jpeg"].includes(
+                  file.name.split(".").pop()?.toLowerCase() || ""
+                );
+              return (
+                <div
+                  key={index}
+                  className="relative group rounded-lg overflow-hidden border border-blue-200 bg-blue-50 p-4 transition-all"
+                >
+                  {isImage ? (
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={file.name}
+                      className="w-full h-32 object-cover mb-2"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-32 mb-2 bg-blue-100 rounded">
+                      <FileText className="w-12 h-12 text-blue-600" />
+                    </div>
+                  )}
+                  <p
+                    className="text-xs text-slate-700 truncate mb-1"
+                    title={file.name}
+                  >
+                    {file.name}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {formatFileSize(file.size)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => removeReport(index)}
+                    className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition z-10"
+                    title="Remove file"
+                  >
+                    <XIcon className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Uploaded Reports Preview */}
+      {uploadedReports.length > 0 && (
+        <div className="mt-4">
+          <p className="text-sm font-medium text-slate-700 mb-3">
+            Uploaded Reports ({uploadedReports.length})
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {uploadedReports.map((report, index) => (
+              <MedicalReportThumbnail
+                key={report.id || index}
+                attachment={report}
+                onRemove={() => removeUploadedReport(index)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Medical Report Thumbnail Component (fetches signed URL on demand)
+function MedicalReportThumbnail({
+  attachment,
+  onRemove,
+}: {
+  attachment: any;
+  onRemove: () => void;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const isImage =
+    attachment.mimeType?.startsWith("image/") ||
+    ["png", "jpg", "jpeg"].includes(
+      attachment.filePath?.split(".").pop()?.toLowerCase() || ""
+    );
+
+  React.useEffect(() => {
+    if (!isImage) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchSignedUrl = async () => {
+      try {
+        const response = await getDoctorNoteAttachmentViewUrl(attachment.id);
+        if (response.success && response.signedUrl) {
+          setImageUrl(response.signedUrl);
+        } else {
+          setError(true);
+        }
+      } catch (error) {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSignedUrl();
+  }, [attachment.id, isImage]);
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return "Unknown size";
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+  };
+
+  const handleView = async () => {
+    try {
+      const response = await getDoctorNoteAttachmentViewUrl(attachment.id);
+      if (response.success && response.signedUrl) {
+        window.open(response.signedUrl, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("Failed to open report");
+      }
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error ||
+          "Failed to open report. Please try again."
+      );
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      const response = await getDoctorNoteAttachmentViewUrl(attachment.id);
+      if (response.success && response.signedUrl) {
+        const link = document.createElement("a");
+        link.href = response.signedUrl;
+        link.download = attachment.fileName;
+        link.target = "_blank";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        toast.error("Failed to download report");
+      }
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error ||
+          "Failed to download report. Please try again."
+      );
+    }
+  };
+
+  return (
+    <div className="relative group rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50 p-4 transition-all">
+      {isImage ? (
+        <>
+          {loading ? (
+            <div className="w-full h-32 flex items-center justify-center bg-emerald-100">
+              <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+            </div>
+          ) : error ? (
+            <div className="w-full h-32 flex items-center justify-center bg-emerald-100">
+              <span className="text-xs text-slate-400">Failed to load</span>
+            </div>
+          ) : imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={attachment.fileName}
+              className="w-full h-32 object-cover mb-2"
+            />
+          ) : null}
+        </>
+      ) : (
+        <div className="flex items-center justify-center h-32 mb-2 bg-emerald-100 rounded">
+          <FileText className="w-12 h-12 text-emerald-600" />
+        </div>
+      )}
+      <p
+        className="text-xs text-slate-700 truncate mb-1"
+        title={attachment.fileName}
+      >
+        {attachment.fileName}
+      </p>
+      <p className="text-xs text-slate-500 mb-2">
+        {formatFileSize(attachment.sizeInBytes)}
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={handleView}
+          className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded hover:bg-emerald-700 transition-colors"
+        >
+          View
+        </button>
+        <button
+          type="button"
+          onClick={handleDownload}
+          className="flex-1 px-3 py-1.5 bg-slate-600 text-white text-xs font-semibold rounded hover:bg-slate-700 transition-colors"
+        >
+          Download
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition z-10"
+        title="Remove report"
+      >
+        <XIcon className="w-3 h-3" />
+      </button>
     </div>
   );
 }
@@ -3167,14 +4283,10 @@ function DietPrescribedSection({
 }: any) {
   const dietPrescribed = getFormValue(["dietPrescribed"]) || {};
   const [dietChartFiles, setDietChartFiles] = React.useState<File[]>([]);
-  const [uploadedPDFs, setUploadedPDFs] = React.useState<any[]>(
-    dietPrescribed.uploadedPDFs || []
-  );
   const [fileErrors, setFileErrors] = React.useState<{
     [fileName: string]: string;
   }>({});
   const [dragActive, setDragActive] = React.useState(false);
-  const [isUploading, setIsUploading] = React.useState(false);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 
@@ -3183,28 +4295,31 @@ function DietPrescribedSection({
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
   const validateAndAddFiles = async (files: File[]) => {
     const errors: { [fileName: string]: string } = {};
     const validFiles: File[] = [];
 
-    // Check total files limit (local + uploaded)
-    const totalFiles = dietChartFiles.length + uploadedPDFs.length + files.length;
+    // Check total files limit (local selection only; upload happens on Save to R2)
+    const totalFiles = dietChartFiles.length + files.length;
     if (totalFiles > 15) {
-      toast.error(`Cannot add ${files.length} file(s). Maximum 15 files allowed in total.`, {
-        duration: 5000,
-        style: {
-          background: "#fee2e2",
-          color: "#991b1b",
-          border: "1px solid #fca5a5",
-          padding: "12px 16px",
-          borderRadius: "8px",
-          fontSize: "14px",
-          maxWidth: "500px",
-        },
-      });
+      toast.error(
+        `Cannot add ${files.length} file(s). Maximum 15 files allowed in total.`,
+        {
+          duration: 5000,
+          style: {
+            background: "#fee2e2",
+            color: "#991b1b",
+            border: "1px solid #fca5a5",
+            padding: "12px 16px",
+            borderRadius: "8px",
+            fontSize: "14px",
+            maxWidth: "500px",
+          },
+        }
+      );
       return;
     }
 
@@ -3217,19 +4332,19 @@ function DietPrescribedSection({
 
       // Check file size (10MB limit)
       if (file.size > MAX_FILE_SIZE) {
-        errors[file.name] = `File too large! Maximum allowed size is 10MB. (${formatFileSize(file.size)})`;
+        errors[
+          file.name
+        ] = `File too large! Maximum allowed size is 10MB. (${formatFileSize(
+          file.size
+        )})`;
         return;
       }
 
       // Check if file already exists in local files
-      if (dietChartFiles.some((f) => f.name === file.name && f.size === file.size)) {
+      if (
+        dietChartFiles.some((f) => f.name === file.name && f.size === file.size)
+      ) {
         errors[file.name] = "This file is already added";
-        return;
-      }
-
-      // Check if file already exists in uploaded files
-      if (uploadedPDFs.some((pdf) => pdf.fileName === file.name && pdf.sizeInBytes === file.size)) {
-        errors[file.name] = "This file is already uploaded";
         return;
       }
 
@@ -3261,9 +4376,6 @@ function DietPrescribedSection({
       const updatedFiles = [...dietChartFiles, ...validFiles].slice(0, 15);
       setDietChartFiles(updatedFiles);
       updateFormData(["dietPrescribed", "dietChartFiles"], updatedFiles);
-      
-      // Auto-upload files to Cloudinary
-      await uploadFilesToCloudinary(validFiles);
     }
   };
 
@@ -3302,114 +4414,15 @@ function DietPrescribedSection({
     const updatedFiles = dietChartFiles.filter((_, i) => i !== index);
     setDietChartFiles(updatedFiles);
     updateFormData(["dietPrescribed", "dietChartFiles"], updatedFiles);
-    
+
     // Clear error for removed file
     if (fileToRemove && fileErrors[fileToRemove.name]) {
       const newErrors = { ...fileErrors };
       delete newErrors[fileToRemove.name];
       setFileErrors(newErrors);
     }
-    
+
     toast.success("File removed", { duration: 2000 });
-  };
-
-  const uploadFilesToCloudinary = async (files: File[]) => {
-    if (files.length === 0) {
-      toast.error("No files to upload.", {
-        duration: 3000,
-        style: {
-          background: "#fee2e2",
-          color: "#991b1b",
-          border: "1px solid #fca5a5",
-          padding: "12px 16px",
-          borderRadius: "8px",
-          fontSize: "14px",
-          maxWidth: "500px",
-        },
-      });
-      return;
-    }
-    
-    setIsUploading(true);
-    try {
-      const response = await uploadPDFFiles(files);
-      
-      if (response.success && response.files) {
-        // Add uploaded files to uploadedPDFs state
-        const newUploadedPDFs = [...uploadedPDFs, ...response.files];
-        setUploadedPDFs(newUploadedPDFs);
-        updateFormData(["dietPrescribed", "uploadedPDFs"], newUploadedPDFs);
-        
-        // Remove uploaded files from local dietChartFiles
-        const uploadedFileNames = files.map(f => f.name);
-        const remainingFiles = dietChartFiles.filter(
-          f => !uploadedFileNames.includes(f.name)
-        );
-        setDietChartFiles(remainingFiles);
-        updateFormData(["dietPrescribed", "dietChartFiles"], remainingFiles);
-        
-        toast.success(`Successfully uploaded ${files.length} PDF file(s)`, {
-          duration: 3000,
-        });
-      } else {
-        // Handle unexpected response structure
-        toast.error("Upload failed. Server returned an unexpected response.", {
-          duration: 5000,
-          style: {
-            background: "#fee2e2",
-            color: "#991b1b",
-            border: "1px solid #fca5a5",
-            padding: "12px 16px",
-            borderRadius: "8px",
-            fontSize: "14px",
-            maxWidth: "500px",
-          },
-        });
-      }
-    } catch (error: any) {
-      // Handle different types of errors
-      let errorMessage = "Failed to upload PDF files. Please try again.";
-      
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.code === "ECONNABORTED") {
-        errorMessage = "Upload timeout. Please try again with smaller files.";
-      } else if (error.code === "ERR_NETWORK") {
-        errorMessage = "Network error. Please check your connection and try again.";
-      }
-      
-      toast.error(errorMessage, {
-        duration: 5000,
-        style: {
-          background: "#fee2e2",
-          color: "#991b1b",
-          border: "1px solid #fca5a5",
-          padding: "12px 16px",
-          borderRadius: "8px",
-          fontSize: "14px",
-          maxWidth: "500px",
-        },
-      });
-      
-      // Remove failed files from local state
-      const failedFileNames = files.map(f => f.name);
-      const remainingFiles = dietChartFiles.filter(
-        f => !failedFileNames.includes(f.name)
-      );
-      setDietChartFiles(remainingFiles);
-      updateFormData(["dietPrescribed", "dietChartFiles"], remainingFiles);
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const removeUploadedPDF = (index: number) => {
-    const updatedPDFs = uploadedPDFs.filter((_, i) => i !== index);
-    setUploadedPDFs(updatedPDFs);
-    updateFormData(["dietPrescribed", "uploadedPDFs"], updatedPDFs);
-    toast.success("Uploaded PDF removed", { duration: 2000 });
   };
 
   return (
@@ -3466,8 +4479,8 @@ function DietPrescribedSection({
           <div
             onDragOver={(e) => {
               e.preventDefault();
-              const totalFiles = dietChartFiles.length + uploadedPDFs.length;
-              if (totalFiles < 15 && !isUploading) {
+              const totalFiles = dietChartFiles.length;
+              if (totalFiles < 15) {
                 setDragActive(true);
               }
             }}
@@ -3480,7 +4493,7 @@ function DietPrescribedSection({
                   ? "border-emerald-600 bg-emerald-50"
                   : "border-gray-300 bg-white hover:border-emerald-400"
               }
-              ${(dietChartFiles.length + uploadedPDFs.length) >= 15 || isUploading ? "opacity-50 pointer-events-none" : ""}
+              ${dietChartFiles.length >= 15 ? "opacity-50 pointer-events-none" : ""}
             `}
           >
             <label
@@ -3488,25 +4501,19 @@ function DietPrescribedSection({
               className="flex flex-col items-center gap-2 cursor-pointer"
             >
               <span className="p-3 bg-emerald-50 rounded-full text-emerald-700">
-                {isUploading ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <Upload className="w-6 h-6" />
-                )}
+                <Upload className="w-6 h-6" />
               </span>
               <div className="text-sm text-slate-600 font-medium">
-                {isUploading
-                  ? "Uploading..."
-                  : (dietChartFiles.length + uploadedPDFs.length) >= 15
+                {dietChartFiles.length >= 15
                   ? "Maximum 15 files reached"
                   : "Tap to upload or drag PDF files here"}
               </div>
               <div className="text-xs text-slate-400">
-                PDF only · Max 10MB per file · Uploads to Cloudinary
+                PDF only · Max 10MB per file · Uploads to R2 when you Save
               </div>
-              {(dietChartFiles.length + uploadedPDFs.length > 0) && (
+              {dietChartFiles.length > 0 && (
                 <div className="text-xs text-slate-500 font-medium mt-1">
-                  {dietChartFiles.length + uploadedPDFs.length} / 15 files
+                  {dietChartFiles.length} / 15 files
                 </div>
               )}
 
@@ -3517,7 +4524,7 @@ function DietPrescribedSection({
                 multiple
                 className="hidden"
                 onChange={handleFileChange}
-                disabled={(dietChartFiles.length + uploadedPDFs.length) >= 15 || isUploading}
+                disabled={dietChartFiles.length >= 15}
               />
             </label>
           </div>
@@ -3526,7 +4533,7 @@ function DietPrescribedSection({
           {dietChartFiles.length > 0 && (
             <div className="mt-4">
               <p className="text-sm font-medium text-slate-700 mb-3">
-                {isUploading ? "Uploading Files..." : `Selected Files (${dietChartFiles.length})`}
+                {`Selected Files (${dietChartFiles.length})`}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {dietChartFiles.map((file, index) => (
@@ -3537,11 +4544,7 @@ function DietPrescribedSection({
                     {/* PDF Icon */}
                     <div className="flex items-start gap-3">
                       <div className="p-2 rounded-lg bg-blue-100 flex-shrink-0">
-                        {isUploading ? (
-                          <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-                        ) : (
-                          <FileText className="w-6 h-6 text-blue-600" />
-                        )}
+                        <FileText className="w-6 h-6 text-blue-600" />
                       </div>
 
                       {/* File Info */}
@@ -3556,21 +4559,19 @@ function DietPrescribedSection({
                           {formatFileSize(file.size)}
                         </p>
                         <p className="text-xs text-blue-600 font-medium">
-                          {isUploading ? "Uploading..." : "Ready to upload"}
+                          Ready to upload (will upload to R2 on Save)
                         </p>
                       </div>
 
                       {/* Delete Button */}
-                      {!isUploading && (
-                        <button
-                          type="button"
-                          onClick={() => removeFile(index)}
-                          className="flex-shrink-0 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full transition"
-                          title="Remove file"
-                        >
-                          <XIcon className="w-3 h-3" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="flex-shrink-0 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full transition"
+                        title="Remove file"
+                      >
+                        <XIcon className="w-3 h-3" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -3578,99 +4579,9 @@ function DietPrescribedSection({
             </div>
           )}
 
-          {/* Uploaded Files Preview Grid */}
-          {uploadedPDFs.length > 0 && (
-            <div className="mt-4">
-              <p className="text-sm font-medium text-slate-700 mb-3">
-                Uploaded PDFs ({uploadedPDFs.length}/15)
-              </p>
-              <p className="text-xs text-slate-500 mb-3">
-                Click on any PDF to open it in a new tab
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {uploadedPDFs.map((pdf, index) => (
-                  <a
-                    key={index}
-                    href={pdf.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="relative group rounded-xl border-2 border-emerald-200 bg-white hover:bg-emerald-50 p-5 transition-all cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-1"
-                  >
-                    {/* Delete Button - Top Right */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        removeUploadedPDF(index);
-                      }}
-                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full transition opacity-0 group-hover:opacity-100 z-10"
-                      title="Remove PDF"
-                    >
-                      <XIcon className="w-3 h-3" />
-                    </button>
-
-                    <div className="flex flex-col items-center text-center">
-                      {/* PDF Icon - Large */}
-                      <div className="mb-4">
-                        <svg
-                          width="64"
-                          height="64"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"
-                            fill="#10b981"
-                            stroke="#10b981"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M14 2V8H20"
-                            fill="#fff"
-                            stroke="#10b981"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <text
-                            x="12"
-                            y="16"
-                            fontSize="5"
-                            fontWeight="bold"
-                            fill="#fff"
-                            textAnchor="middle"
-                          >
-                            PDF
-                          </text>
-                        </svg>
-                      </div>
-
-                      {/* File Info */}
-                      <h3 className="text-base font-semibold text-emerald-700 group-hover:text-emerald-800 mb-1">
-                        PDF #{index + 1}
-                      </h3>
-                      <p
-                        className="text-sm text-slate-700 truncate w-full mb-1"
-                        title={pdf.fileName}
-                      >
-                        {pdf.fileName}
-                      </p>
-                      <p className="text-xs text-slate-500 mb-2">
-                        {formatFileSize(pdf.sizeInBytes)}
-                      </p>
-                      <p className="text-xs text-emerald-600 font-medium">
-                        Click to open
-                      </p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
+          <p className="text-xs text-slate-500 mt-4">
+            Uploaded diet chart PDFs will appear in the Doctor Notes preview after you Save.
+          </p>
         </div>
       </div>
       <Input
@@ -3841,6 +4752,125 @@ function BodyMeasurementsSection({
               updateFormData(["bodyMeasurements", "ankle"], val)
             }
             placeholder="in cm"
+          />
+        </div>
+      </SubSection>
+
+      {/* Body Composition Subsection */}
+      <SubSection title="Body Composition">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
+          <Input
+            label="Body Weight"
+            type="number"
+            value={bodyMeasurements.bodyWeight || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "bodyWeight"], val)
+            }
+            placeholder="in kg"
+          />
+          <Input
+            label="Body Mass Index (BMI)"
+            type="number"
+            value={bodyMeasurements.bmi || ""}
+            onChange={(val) => updateFormData(["bodyMeasurements", "bmi"], val)}
+            placeholder="e.g. 22.5"
+          />
+          <Input
+            label="Body Fat Ratio"
+            type="number"
+            value={bodyMeasurements.bodyFatRatio || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "bodyFatRatio"], val)
+            }
+            placeholder="in %"
+          />
+          <Input
+            label="Body Water"
+            type="number"
+            value={bodyMeasurements.bodyWater || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "bodyWater"], val)
+            }
+            placeholder="in %"
+          />
+          <Input
+            label="Bone Mass"
+            type="number"
+            value={bodyMeasurements.boneMass || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "boneMass"], val)
+            }
+            placeholder="in kg"
+          />
+          <Input
+            label="Basal Metabolic Rate (BMR)"
+            type="number"
+            value={bodyMeasurements.bmr || ""}
+            onChange={(val) => updateFormData(["bodyMeasurements", "bmr"], val)}
+            placeholder="kcal/day"
+          />
+          <Input
+            label="Metabolic Age"
+            type="number"
+            value={bodyMeasurements.metabolicAge || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "metabolicAge"], val)
+            }
+            placeholder="in years"
+          />
+          <Input
+            label="Visceral Fat"
+            type="number"
+            value={bodyMeasurements.visceralFat || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "visceralFat"], val)
+            }
+            placeholder="value"
+          />
+          <Input
+            label="Subcutaneous Fat"
+            type="number"
+            value={bodyMeasurements.subcutaneousFat || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "subcutaneousFat"], val)
+            }
+            placeholder="in %"
+          />
+          <Input
+            label="Protein Mass"
+            type="number"
+            value={bodyMeasurements.proteinMass || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "proteinMass"], val)
+            }
+            placeholder="in kg"
+          />
+          <Input
+            label="Muscle Mass"
+            type="number"
+            value={bodyMeasurements.muscleMass || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "muscleMass"], val)
+            }
+            placeholder="in kg"
+          />
+          <Input
+            label="Weight Without Fat"
+            type="number"
+            value={bodyMeasurements.weightWithoutFat || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "weightWithoutFat"], val)
+            }
+            placeholder="in kg"
+          />
+          <Input
+            label="Obesity Level"
+            type="number"
+            value={bodyMeasurements.obesityLevel || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "obesityLevel"], val)
+            }
+            placeholder="in %"
           />
         </div>
       </SubSection>
