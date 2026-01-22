@@ -333,10 +333,10 @@ export default function PendingAppointmentsPage() {
 
               {/* Pagination */}
               {total > limit && (
-                <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/60 backdrop-blur-xl rounded-xl p-4 border border-white/40">
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gradient-to-br from-emerald-50/80 to-white rounded-xl p-5 border-2 border-emerald-200/60 shadow-md shadow-emerald-100/50">
                   {/* Page Size Selector */}
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-slate-700 font-medium">
+                    <label className="text-sm font-semibold text-slate-800">
                       Page Size:
                     </label>
                     <select
@@ -345,7 +345,7 @@ export default function PendingAppointmentsPage() {
                         setLimit(Number(e.target.value));
                         setPage(1); // Reset to page 1 when limit changes
                       }}
-                      className="px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                      className="px-3 py-1.5 border-2 border-emerald-300/60 bg-white rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium text-slate-800 shadow-sm hover:border-emerald-400 transition-colors"
                     >
                       <option value="10">10</option>
                       <option value="20">20</option>
@@ -354,7 +354,7 @@ export default function PendingAppointmentsPage() {
                   </div>
 
                   {/* Pagination Info */}
-                  <div className="text-sm text-slate-600">
+                  <div className="text-sm font-semibold text-slate-800">
                     Showing {(page - 1) * limit + 1} to{" "}
                     {Math.min(page * limit, total)} of {total} appointments
                   </div>
@@ -364,13 +364,13 @@ export default function PendingAppointmentsPage() {
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={page === 1}
-                      className="p-2 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="p-2.5 border-2 border-emerald-300/60 bg-white rounded-lg hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-emerald-300/60 transition-all duration-200 text-emerald-700 font-semibold"
                     >
                       <ChevronLeft className="w-5 h-5" />
                     </button>
 
                     {/* Page Numbers */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       {Array.from(
                         { length: Math.min(5, Math.ceil(total / limit)) },
                         (_, i) => {
@@ -390,10 +390,10 @@ export default function PendingAppointmentsPage() {
                             <button
                               key={pageNum}
                               onClick={() => setPage(pageNum)}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
                                 page === pageNum
-                                  ? "bg-emerald-600 text-white"
-                                  : "border border-slate-300 hover:bg-slate-50 text-slate-700"
+                                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-200/50 scale-105"
+                                  : "border-2 border-emerald-300/60 bg-white hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm text-slate-800"
                               }`}
                             >
                               {pageNum}
@@ -408,7 +408,7 @@ export default function PendingAppointmentsPage() {
                         setPage((p) => Math.min(Math.ceil(total / limit), p + 1))
                       }
                       disabled={page >= Math.ceil(total / limit)}
-                      className="p-2 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="p-2.5 border-2 border-emerald-300/60 bg-white rounded-lg hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-emerald-300/60 transition-all duration-200 text-emerald-700 font-semibold"
                     >
                       <ChevronRight className="w-5 h-5" />
                     </button>

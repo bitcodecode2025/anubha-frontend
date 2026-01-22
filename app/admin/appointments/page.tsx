@@ -868,8 +868,8 @@ export default function AdminAppointmentsPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="bg-white rounded-lg shadow-sm p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-200">
-            <div className="text-sm text-slate-700">
+          <div className="bg-gradient-to-br from-emerald-50/80 to-white rounded-xl shadow-md shadow-emerald-100/50 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-emerald-200/60">
+            <div className="text-sm font-semibold text-slate-800">
               Showing {(page - 1) * limit + 1} to{" "}
               {Math.min(page * limit, total)} of {total} appointments
             </div>
@@ -877,18 +877,18 @@ export default function AdminAppointmentsPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
+                className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-white border-2 border-emerald-300/60 rounded-lg hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-emerald-300/60 flex items-center gap-1.5 transition-all duration-200"
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span className="hidden sm:inline">Previous</span>
               </button>
-              <span className="text-sm text-slate-700 px-2">
+              <span className="text-sm font-semibold text-slate-800 px-3 py-1.5 bg-white/60 rounded-lg border border-emerald-200/40">
                 Page {page} of {totalPages}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
+                className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-white border-2 border-emerald-300/60 rounded-lg hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-emerald-300/60 flex items-center gap-1.5 transition-all duration-200"
               >
                 <span className="hidden sm:inline">Next</span>
                 <ChevronRight className="w-4 h-4" />

@@ -22,6 +22,8 @@ import {
   getDoctorNoteAttachmentViewUrl,
   deleteDoctorNoteAttachment,
 } from "@/lib/doctor-notes-api";
+import { saveAllSections } from "@/lib/doctor-notes-sections-save";
+import api from "@/lib/api";
 // NOTE: Diet chart PDFs (Section 7) are uploaded to R2 through the main doctor notes
 // multipart save endpoint (multer field: `dietCharts`). Do not auto-upload to Cloudinary.
 import AppointmentPreview from "./AppointmentPreview";
@@ -64,6 +66,7 @@ export default function DoctorNotesForm({
   const [hasExistingNotes, setHasExistingNotes] = useState(false);
   const [saveStartTime, setSaveStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [attachments, setAttachments] = useState<any[]>([]);
   const [openSections, setOpenSections] = useState<Set<string>>(
     new Set(["section1"])
   );
@@ -93,11 +96,19 @@ export default function DoctorNotesForm({
     setLoading(true);
     try {
       const response = await getDoctorNotes(appointmentId);
-      if (response.success && response.doctorNotes?.formData) {
-        const loadedData = response.doctorNotes.formData;
-        // Store original for change detection
-        setOriginalFormData(JSON.parse(JSON.stringify(loadedData))); // Deep copy
-        setHasExistingNotes(true);
+      if (response.success && response.doctorNotes) {
+        if (response.doctorNotes.formData) {
+          const loadedData = response.doctorNotes.formData;
+          // Store original for change detection
+          setOriginalFormData(JSON.parse(JSON.stringify(loadedData))); // Deep copy
+          setHasExistingNotes(true);
+        } else {
+          setHasExistingNotes(false);
+        }
+        // Load attachments for preview
+        if (response.doctorNotes.attachments) {
+          setAttachments(response.doctorNotes.attachments);
+        }
       } else {
         setHasExistingNotes(false);
       }
@@ -219,50 +230,169 @@ export default function DoctorNotesForm({
         return;
       }
 
-      // Check if this is a partial update (has existing notes and only some fields changed)
-      const changedFields = hasExistingNotes
-        ? getChangedFields(originalFormData, formData)
-        : null;
+      // Use saveAllSections() to save sections in parallel
+      // Pass originalFormData to enable dirty-section detection (only modified sections will be saved)
+      const results = await saveAllSections({
+        appointmentId,
+        formState: formData,
+        originalFormData, // Enables dirty-section detection
+        isDraft,
+      });
 
-      const isPartialUpdate =
-        hasExistingNotes &&
-        changedFields &&
-        Object.keys(changedFields).length > 0 &&
-        Object.keys(changedFields).length < Object.keys(formData).length;
+      // Count successes and failures
+      const sectionKeys = Object.keys(results) as Array<keyof typeof results>;
+      const succeeded = sectionKeys.filter(
+        (key) => results[key]?.status === "fulfilled"
+      );
+      const failed = sectionKeys.filter(
+        (key) => results[key]?.status === "rejected"
+      );
 
-      let response;
-      if (isPartialUpdate) {
-        // Use PATCH for partial updates (fast)
-        response = await updateDoctorNotes(
-          appointmentId,
-          changedFields,
+      // Extract error messages from failed sections
+      const errorMessages: string[] = [];
+      failed.forEach((key) => {
+        const result = results[key];
+        if (result?.status === "rejected") {
+          const error = result.error as any;
+          let errorMsg = `Section ${key} failed`;
+          if (error?.response?.data?.message) {
+            errorMsg = error.response.data.message;
+          } else if (error?.response?.data?.error) {
+            errorMsg = error.response.data.error;
+          } else if (error?.message) {
+            errorMsg = error.message;
+          }
+          errorMessages.push(errorMsg);
+        }
+      });
+
+      // Show appropriate toast based on results
+      if (failed.length === 0) {
+        // All sections succeeded
+        toast.success(
           isDraft
+            ? "Draft saved successfully!"
+            : "All sections saved successfully!",
+          {
+            duration: 3000,
+          }
+        );
+      } else if (succeeded.length > 0) {
+        // Partial success - some sections failed
+        toast.error(
+          `${succeeded.length} section(s) saved, ${failed.length} section(s) failed: ${errorMessages.join("; ")}`,
+          {
+            duration: 6000,
+            style: {
+              background: "#fef3c7",
+              color: "#92400e",
+              border: "1px solid #fbbf24",
+              padding: "12px 16px",
+              borderRadius: "8px",
+              fontSize: "14px",
+              maxWidth: "500px",
+            },
+          }
         );
       } else {
-        // Use POST for full submission (new notes or full update)
-        response = await saveDoctorNotes({
-          appointmentId,
-          formData,
-          isDraft,
-        });
+        // All sections failed
+        toast.error(
+          `All sections failed: ${errorMessages.join("; ")}`,
+          {
+            duration: 6000,
+            style: {
+              background: "#fee2e2",
+              color: "#991b1b",
+              border: "1px solid #fca5a5",
+              padding: "12px 16px",
+              borderRadius: "8px",
+              fontSize: "14px",
+              maxWidth: "500px",
+            },
+          }
+        );
       }
 
-      // Update original form data after successful save
-      setOriginalFormData(JSON.parse(JSON.stringify(formData)));
+      // Update original form data only for succeeded sections
+      // (Don't update if all failed, to allow retry)
+      if (succeeded.length > 0) {
+        // Create a partial update with only succeeded sections
+        // Map each sectionKey to its corresponding formData value
+        const succeededData: Partial<DoctorNotesFormData> = {};
+        succeeded.forEach((sectionKey) => {
+          // Special handling for composite sectionKeys that don't exist as formData properties
+          if (sectionKey === "baseInfo" as any) {
+            // Extract all 18 Section 1 flat fields from formData
+            const baseInfoFields = [
+              "personalHistory",
+              "reasonForJoiningProgram",
+              "ethnicity",
+              "joiningDate",
+              "expiryDate",
+              "dietPrescriptionDate",
+              "durationOfDiet",
+              "previousDietTaken",
+              "previousDietDetails",
+              "typeOfDietTaken",
+              "maritalStatus",
+              "numberOfChildren",
+              "dietPreference",
+              "wakeupTime",
+              "bedTime",
+              "dayNap",
+              "workoutTiming",
+              "workoutType",
+            ];
+            baseInfoFields.forEach((field) => {
+              const fieldValue = (formData as any)[field];
+              if (fieldValue !== undefined && fieldValue !== null) {
+                (succeededData as any)[field] = fieldValue;
+              }
+            });
+          } else if (sectionKey === "foodRecall" as any) {
+            // Extract all 7 Section 2 meal keys from formData
+            const mealKeys = [
+              "morningIntake",
+              "breakfast",
+              "midMorning",
+              "lunch",
+              "midDay",
+              "eveningSnack",
+              "dinner",
+            ];
+            mealKeys.forEach((mealKey) => {
+              const mealValue = (formData as any)[mealKey];
+              if (mealValue !== undefined && mealValue !== null) {
+                (succeededData as any)[mealKey] = mealValue;
+              }
+            });
+          } else {
+            // Generic mapping for other sections: sectionKey directly corresponds to formData property name
+            // Handle all section types: flat fields, nested objects, and string values
+            const sectionValue = (formData as any)[sectionKey];
+            if (sectionValue !== undefined && sectionValue !== null) {
+              (succeededData as any)[sectionKey] = sectionValue;
+            }
+          }
+        });
+        
+        // Merge succeeded data into original (preserve other unchanged sections)
+        const updatedOriginal = {
+          ...originalFormData,
+          ...succeededData,
+        };
+        setOriginalFormData(updatedOriginal);
+      }
 
-      // Clear localStorage after successful submission (only if not a draft)
-      if (!isDraft) {
+      // Clear localStorage after successful submission (only if not a draft and all succeeded)
+      if (!isDraft && failed.length === 0) {
         clearFormData();
       }
 
-      toast.success(
-        isDraft
-          ? "Draft saved successfully!"
-          : isPartialUpdate
-          ? "Changes saved successfully!"
-          : "Doctor notes saved successfully!"
-      );
-      if (onSave) onSave();
+      // Call onSave callback if at least one section succeeded
+      if (succeeded.length > 0 && onSave) {
+        onSave();
+      }
     } catch (error: any) {
       const duration = saveStartTime ? Date.now() - saveStartTime : 0;
 
@@ -579,6 +709,18 @@ export default function DoctorNotesForm({
             updateFormData={updateFormData}
             getFormValue={getFormValue}
             appointmentId={appointmentId}
+            attachments={attachments}
+            onAttachmentDeleted={async () => {
+              // Refresh attachments after deletion
+              try {
+                const response = await getDoctorNotes(appointmentId);
+                if (response.success && response.doctorNotes?.attachments) {
+                  setAttachments(response.doctorNotes.attachments);
+                }
+              } catch (error) {
+                // Ignore errors
+              }
+            }}
           />
         </Section>
 
@@ -593,6 +735,20 @@ export default function DoctorNotesForm({
             formData={formData}
             updateFormData={updateFormData}
             getFormValue={getFormValue}
+            appointmentId={appointmentId}
+            attachments={attachments}
+            patientEmail={appointment?.patient?.email || null}
+            onPDFsUploaded={async () => {
+              // Refresh attachments after upload
+              try {
+                const response = await getDoctorNotes(appointmentId);
+                if (response.success && response.doctorNotes?.attachments) {
+                  setAttachments(response.doctorNotes.attachments);
+                }
+              } catch (error) {
+                // Ignore errors
+              }
+            }}
           />
         </Section>
 
@@ -3214,6 +3370,17 @@ function HealthProfileSection({
             appointmentId={appointmentId || ""}
             updateFormData={updateFormData}
             getFormValue={getFormValue}
+            onReportsUploaded={async () => {
+              // Refresh attachments after upload
+              try {
+                const response = await getDoctorNotes(appointmentId);
+                if (response.success && response.doctorNotes?.attachments) {
+                  setAttachments(response.doctorNotes.attachments);
+                }
+              } catch (error) {
+                // Ignore errors
+              }
+            }}
           />
         </div>
       </div>
@@ -3256,24 +3423,17 @@ function PrePostConsultationImagesSection({
   const [dragActivePost, setDragActivePost] = useState(false);
   const [isUploadingPre, setIsUploadingPre] = useState(false);
   const [isUploadingPost, setIsUploadingPost] = useState(false);
+  
+  // Key-based remount for file inputs to ensure onChange fires reliably
+  const [preInputKey, setPreInputKey] = useState(0);
+  const [postInputKey, setPostInputKey] = useState(0);
 
   const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
   const MAX_IMAGES_PER_CATEGORY = 10;
 
-  useEffect(() => {
-    // Update form data when local image files change
-    updateFormData(
-      ["prePostConsultationImages", "preConsultationImages"],
-      preImages
-    );
-  }, [preImages]);
-
-  useEffect(() => {
-    updateFormData(
-      ["prePostConsultationImages", "postConsultationImages"],
-      postImages
-    );
-  }, [postImages]);
+  // Note: Pre/post consultation images are uploaded immediately on selection
+  // They are NOT stored in formData. Preview reads from uploaded images state (backend attachments).
+  // Local files (preImages/postImages) are only used for failed uploads that need retry.
 
   useEffect(() => {
     // Initialize uploaded images from formData when it loads
@@ -3333,7 +3493,117 @@ function PrePostConsultationImagesSection({
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
-  const validateAndAddImages = (
+  // Upload pre/post consultation images immediately after selection
+  const uploadConsultationImages = async (
+    files: File[],
+    isPre: boolean
+  ): Promise<void> => {
+    if (files.length === 0) return;
+
+    const setLoadingState = isPre ? setIsUploadingPre : setIsUploadingPost;
+    setLoadingState(true);
+
+    try {
+      // Bootstrap: Ensure Doctor Notes record exists before uploading attachments
+      let recordExists = false;
+      try {
+        const existingNotes = await getDoctorNotes(appointmentId);
+        if (existingNotes.success && existingNotes.doctorNotes) {
+          recordExists = true;
+        }
+      } catch (error: any) {
+        recordExists = false;
+      }
+
+      // Create record if it doesn't exist
+      if (!recordExists) {
+        await saveDoctorNotes({
+          appointmentId,
+          formData: {},
+          isDraft: true,
+        });
+      }
+
+      // Create FormData for multipart upload
+      const formData = new FormData();
+      
+      // Add files with correct field name
+      const fieldName = isPre ? "preConsultationImages" : "postConsultationImages";
+      files.forEach((file) => {
+        formData.append(fieldName, file);
+      });
+
+      // Add empty formData JSON (backend expects it)
+      formData.append("formData", JSON.stringify({}));
+      formData.append("isDraft", "true");
+
+      // Upload via PATCH endpoint (same endpoint handles file uploads)
+      const response = await api.patch<{ success: boolean; error?: string }>(
+        `admin/doctor-notes/${appointmentId}`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        // Refresh uploaded images from backend
+        const notesResponse = await getDoctorNotes(appointmentId);
+        if (notesResponse.success && notesResponse.doctorNotes?.attachments) {
+          const category = isPre ? "pre" : "post";
+          const uploaded = notesResponse.doctorNotes.attachments.filter(
+            (att: any) =>
+              att.fileCategory === "IMAGE" &&
+              att.section === "PrePostConsultation" &&
+              !att.isArchived &&
+              att.filePath?.includes(`/${category}/`)
+          );
+
+          if (isPre) {
+            setUploadedPreImages(
+              uploaded.map((img: any) => ({
+                id: img.id,
+                fileName: img.fileName,
+                filePath: img.filePath,
+                mimeType: img.mimeType,
+                sizeInBytes: img.sizeInBytes,
+              }))
+            );
+          } else {
+            setUploadedPostImages(
+              uploaded.map((img: any) => ({
+                id: img.id,
+                fileName: img.fileName,
+                filePath: img.filePath,
+                mimeType: img.mimeType,
+                sizeInBytes: img.sizeInBytes,
+              }))
+            );
+          }
+        }
+
+        toast.success(
+          `Successfully uploaded ${files.length} image(s)`,
+          { duration: 3000 }
+        );
+      } else {
+        throw new Error(response.data.error || "Upload failed");
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to upload images";
+      toast.error(errorMessage, { duration: 5000 });
+      throw error;
+    } finally {
+      setLoadingState(false);
+    }
+  };
+
+  const validateAndAddImages = async (
     files: File[],
     currentImages: File[],
     uploadedImages: any[],
@@ -3399,10 +3669,18 @@ function PrePostConsultationImagesSection({
     }
 
     if (validFiles.length > 0) {
-      setImageState((prev) =>
-        [...prev, ...validFiles].slice(0, MAX_IMAGES_PER_CATEGORY)
-      );
-      setImageErrors({});
+      // Upload files immediately
+      try {
+        await uploadConsultationImages(validFiles, isPre);
+        // Files are now uploaded, don't add to local state
+        // The uploaded images state will be updated by uploadConsultationImages
+        setImageErrors({});
+      } catch (error) {
+        // Upload failed, add to local state for retry
+        setImageState((prev) =>
+          [...prev, ...validFiles].slice(0, MAX_IMAGES_PER_CATEGORY)
+        );
+      }
     }
   };
 
@@ -3421,6 +3699,8 @@ function PrePostConsultationImagesSection({
           setPreImageErrors,
           true
         );
+        // Force remount by updating key to ensure onChange fires on next selection
+        setPreInputKey((prev) => prev + 1);
       } else {
         validateAndAddImages(
           filesArray,
@@ -3430,7 +3710,10 @@ function PrePostConsultationImagesSection({
           setPostImageErrors,
           false
         );
+        // Force remount by updating key to ensure onChange fires on next selection
+        setPostInputKey((prev) => prev + 1);
       }
+      // Reset input value (additional safety measure)
       e.target.value = "";
     }
   };
@@ -3682,6 +3965,7 @@ function PrePostConsultationImagesSection({
               </div>
             )}
             <input
+              key={isPre ? `pre-${preInputKey}` : `post-${postInputKey}`}
               id={`image-upload-${isPre ? "pre" : "post"}`}
               type="file"
               accept=".png,.jpg,.jpeg,image/png,image/jpeg"
@@ -3799,10 +4083,12 @@ function MedicalReportsUpload({
   appointmentId,
   updateFormData,
   getFormValue,
+  onReportsUploaded,
 }: {
   appointmentId: string;
   updateFormData: any;
   getFormValue: any;
+  onReportsUploaded?: () => void;
 }) {
   const [reportFiles, setReportFiles] = React.useState<File[]>([]);
   const [uploadedReports, setUploadedReports] = React.useState<any[]>([]);
@@ -3811,6 +4097,7 @@ function MedicalReportsUpload({
   }>({});
   const [dragActive, setDragActive] = React.useState(false);
   const [isUploading, setIsUploading] = React.useState(false);
+  const [reportInputKey, setReportInputKey] = React.useState(0);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
   const MAX_REPORTS = 10;
@@ -3821,6 +4108,104 @@ function MedicalReportsUpload({
     const sizes = ["Bytes", "KB", "MB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+  };
+
+  // Upload medical reports immediately after selection
+  const uploadMedicalReports = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+
+    try {
+      // Bootstrap: Ensure Doctor Notes record exists before uploading attachments
+      let recordExists = false;
+      try {
+        const existingNotes = await getDoctorNotes(appointmentId);
+        if (existingNotes.success && existingNotes.doctorNotes) {
+          recordExists = true;
+        }
+      } catch (error: any) {
+        recordExists = false;
+      }
+
+      // Create record if it doesn't exist
+      if (!recordExists) {
+        await saveDoctorNotes({
+          appointmentId,
+          formData: {},
+          isDraft: true,
+        });
+      }
+
+      // Create FormData for multipart upload
+      const formData = new FormData();
+      
+      // Add files with correct field name
+      files.forEach((file) => {
+        formData.append("medicalReports", file);
+      });
+
+      // Add empty formData JSON (backend expects it)
+      formData.append("formData", JSON.stringify({}));
+      formData.append("isDraft", "true");
+
+      // Upload via PATCH endpoint (same endpoint handles file uploads)
+      const response = await api.patch<{ success: boolean; error?: string }>(
+        `admin/doctor-notes/${appointmentId}`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        // Refresh uploaded reports from backend
+        const notesResponse = await getDoctorNotes(appointmentId);
+        if (notesResponse.success && notesResponse.doctorNotes?.attachments) {
+          const reports = notesResponse.doctorNotes.attachments.filter(
+            (att: any) =>
+              (att.fileCategory === "LAB_REPORT" ||
+                att.fileCategory === "OTHER") &&
+              att.section === "HealthProfile" &&
+              !att.isArchived &&
+              att.filePath?.includes("/reports/")
+          );
+
+          setUploadedReports(
+            reports.map((report: any) => ({
+              id: report.id,
+              fileName: report.fileName,
+              filePath: report.filePath,
+              mimeType: report.mimeType,
+              sizeInBytes: report.sizeInBytes,
+            }))
+          );
+
+          // Notify parent to refresh attachments for preview
+          if (onReportsUploaded) {
+            onReportsUploaded();
+          }
+        }
+
+        toast.success(
+          `Successfully uploaded ${files.length} report(s)`,
+          { duration: 3000 }
+        );
+      } else {
+        throw new Error(response.data.error || "Upload failed");
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to upload reports";
+      toast.error(errorMessage, { duration: 5000 });
+      throw error;
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Load existing reports from attachments on mount
@@ -3932,13 +4317,24 @@ function MedicalReportsUpload({
     }
 
     if (validFiles.length > 0) {
-      const updatedFiles = [...reportFiles, ...validFiles].slice(
-        0,
-        MAX_REPORTS
-      );
-      setReportFiles(updatedFiles);
-      updateFormData(["healthProfile", "medicalReports"], updatedFiles);
-      setFileErrors({});
+      // Upload files immediately
+      try {
+        await uploadMedicalReports(validFiles);
+        // Files are now uploaded, don't add to local state
+        // The uploaded reports state will be updated by uploadMedicalReports
+        setFileErrors({});
+        // Force remount file input to ensure onChange fires reliably
+        setReportInputKey((prev) => prev + 1);
+      } catch (error) {
+        // Upload failed, add to local state for retry
+        const updatedFiles = [...reportFiles, ...validFiles].slice(
+          0,
+          MAX_REPORTS
+        );
+        setReportFiles(updatedFiles);
+        // Note: We don't store files in formData anymore - they upload immediately
+        setFileErrors({});
+      }
     }
   };
 
@@ -3971,6 +4367,10 @@ function MedicalReportsUpload({
       await deleteDoctorNoteAttachment(reportToRemove.id);
       toast.success("Report removed successfully");
       setUploadedReports((prev) => prev.filter((_, i) => i !== index));
+      // Notify parent to refresh attachments for preview
+      if (onReportsUploaded) {
+        onReportsUploaded();
+      }
     } catch (error: any) {
       toast.error(
         error?.response?.data?.error ||
@@ -4038,6 +4438,7 @@ function MedicalReportsUpload({
           )}
 
           <input
+            key={`report-${reportInputKey}`}
             id="medical-reports-upload"
             type="file"
             accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/jpeg,image/jpg,image/png"
@@ -4280,13 +4681,19 @@ function DietPrescribedSection({
   formData,
   updateFormData,
   getFormValue,
+  appointmentId,
+  attachments = [],
+  onPDFsUploaded,
 }: any) {
   const dietPrescribed = getFormValue(["dietPrescribed"]) || {};
   const [dietChartFiles, setDietChartFiles] = React.useState<File[]>([]);
+  const [uploadedPDFs, setUploadedPDFs] = React.useState<any[]>([]);
   const [fileErrors, setFileErrors] = React.useState<{
     [fileName: string]: string;
   }>({});
   const [dragActive, setDragActive] = React.useState(false);
+  const [isUploading, setIsUploading] = React.useState(false);
+  const [pdfInputKey, setPdfInputKey] = React.useState(0);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
 
@@ -4298,12 +4705,143 @@ function DietPrescribedSection({
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
+  // Load existing PDFs from attachments on mount
+  React.useEffect(() => {
+    const loadExistingPDFs = async () => {
+      try {
+        const response = await getDoctorNotes(appointmentId);
+        if (response.success && response.doctorNotes?.attachments) {
+          const pdfs = response.doctorNotes.attachments.filter(
+            (att: any) =>
+              att.fileCategory === "DIET_CHART" &&
+              att.section === "DietPrescribed" &&
+              !att.isArchived &&
+              att.filePath?.includes("/pdf/")
+          );
+
+          setUploadedPDFs(
+            pdfs.map((pdf: any) => ({
+              id: pdf.id,
+              fileName: pdf.fileName,
+              filePath: pdf.filePath,
+              mimeType: pdf.mimeType,
+              sizeInBytes: pdf.sizeInBytes,
+            }))
+          );
+        }
+      } catch (error) {
+        // Ignore errors - PDFs might not exist yet
+      }
+    };
+
+    if (appointmentId) {
+      loadExistingPDFs();
+    }
+  }, [appointmentId]);
+
+  // Upload diet chart PDFs immediately after selection
+  const uploadDietChartPDFs = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+
+    try {
+      // Bootstrap: Ensure Doctor Notes record exists before uploading attachments
+      let recordExists = false;
+      try {
+        const existingNotes = await getDoctorNotes(appointmentId);
+        if (existingNotes.success && existingNotes.doctorNotes) {
+          recordExists = true;
+        }
+      } catch (error: any) {
+        recordExists = false;
+      }
+
+      // Create record if it doesn't exist
+      if (!recordExists) {
+        await saveDoctorNotes({
+          appointmentId,
+          formData: {},
+          isDraft: true,
+        });
+      }
+
+      // Create FormData for multipart upload
+      const formData = new FormData();
+      
+      // Add files with correct field name (backend expects "dietCharts")
+      files.forEach((file) => {
+        formData.append("dietCharts", file);
+      });
+
+      // Add empty formData JSON (backend expects it)
+      formData.append("formData", JSON.stringify({}));
+      formData.append("isDraft", "true");
+
+      // Upload via PATCH endpoint (same endpoint handles file uploads)
+      const response = await api.patch<{ success: boolean; error?: string }>(
+        `admin/doctor-notes/${appointmentId}`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      if (response.data.success) {
+        // Refresh uploaded PDFs from backend
+        const notesResponse = await getDoctorNotes(appointmentId);
+        if (notesResponse.success && notesResponse.doctorNotes?.attachments) {
+          const pdfs = notesResponse.doctorNotes.attachments.filter(
+            (att: any) =>
+              att.fileCategory === "DIET_CHART" &&
+              att.section === "DietPrescribed" &&
+              !att.isArchived &&
+              att.filePath?.includes("/pdf/")
+          );
+
+          setUploadedPDFs(
+            pdfs.map((pdf: any) => ({
+              id: pdf.id,
+              fileName: pdf.fileName,
+              filePath: pdf.filePath,
+              mimeType: pdf.mimeType,
+              sizeInBytes: pdf.sizeInBytes,
+            }))
+          );
+
+          // Notify parent to refresh attachments for preview
+          if (onPDFsUploaded) {
+            onPDFsUploaded();
+          }
+        }
+
+        toast.success(
+          `Successfully uploaded ${files.length} PDF(s)`,
+          { duration: 3000 }
+        );
+      } else {
+        throw new Error(response.data.error || "Upload failed");
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Failed to upload PDFs";
+      toast.error(errorMessage, { duration: 5000 });
+      throw error;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const validateAndAddFiles = async (files: File[]) => {
     const errors: { [fileName: string]: string } = {};
     const validFiles: File[] = [];
 
-    // Check total files limit (local selection only; upload happens on Save to R2)
-    const totalFiles = dietChartFiles.length + files.length;
+    // Check total files limit (includes uploaded PDFs)
+    const totalFiles = uploadedPDFs.length + files.length;
     if (totalFiles > 15) {
       toast.error(
         `Cannot add ${files.length} file(s). Maximum 15 files allowed in total.`,
@@ -4348,6 +4886,16 @@ function DietPrescribedSection({
         return;
       }
 
+      // Check if file already exists in uploaded PDFs
+      if (
+        uploadedPDFs.some(
+          (pdf) => pdf.fileName === file.name && pdf.sizeInBytes === file.size
+        )
+      ) {
+        errors[file.name] = "This file is already uploaded";
+        return;
+      }
+
       validFiles.push(file);
     });
 
@@ -4371,11 +4919,22 @@ function DietPrescribedSection({
       });
     }
 
-    // Add valid files and upload them
+    // Upload files immediately
     if (validFiles.length > 0) {
-      const updatedFiles = [...dietChartFiles, ...validFiles].slice(0, 15);
-      setDietChartFiles(updatedFiles);
-      updateFormData(["dietPrescribed", "dietChartFiles"], updatedFiles);
+      try {
+        await uploadDietChartPDFs(validFiles);
+        // Files are now uploaded, don't add to local state
+        // The uploaded PDFs state will be updated by uploadDietChartPDFs
+        setFileErrors({});
+        // Force remount file input to ensure onChange fires reliably
+        setPdfInputKey((prev) => prev + 1);
+      } catch (error) {
+        // Upload failed, add to local state for retry
+        const updatedFiles = [...dietChartFiles, ...validFiles].slice(0, 15);
+        setDietChartFiles(updatedFiles);
+        // Note: We don't store files in formData anymore - they upload immediately
+        setFileErrors({});
+      }
     }
   };
 
@@ -4413,7 +4972,8 @@ function DietPrescribedSection({
     const fileToRemove = dietChartFiles[index];
     const updatedFiles = dietChartFiles.filter((_, i) => i !== index);
     setDietChartFiles(updatedFiles);
-    updateFormData(["dietPrescribed", "dietChartFiles"], updatedFiles);
+    // Note: Files are not stored in formData anymore - they upload immediately
+    // Only local files (failed uploads) are in dietChartFiles state
 
     // Clear error for removed file
     if (fileToRemove && fileErrors[fileToRemove.name]) {
@@ -4423,6 +4983,24 @@ function DietPrescribedSection({
     }
 
     toast.success("File removed", { duration: 2000 });
+  };
+
+  const removeUploadedPDF = async (index: number) => {
+    const pdfToRemove = uploadedPDFs[index];
+    try {
+      await deleteDoctorNoteAttachment(pdfToRemove.id);
+      toast.success("PDF removed successfully");
+      setUploadedPDFs((prev) => prev.filter((_, i) => i !== index));
+      // Notify parent to refresh attachments for preview
+      if (onPDFsUploaded) {
+        onPDFsUploaded();
+      }
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error ||
+          "Failed to remove PDF. Please try again."
+      );
+    }
   };
 
   return (
@@ -4479,8 +5057,8 @@ function DietPrescribedSection({
           <div
             onDragOver={(e) => {
               e.preventDefault();
-              const totalFiles = dietChartFiles.length;
-              if (totalFiles < 15) {
+              const totalFiles = uploadedPDFs.length;
+              if (totalFiles < 15 && !isUploading) {
                 setDragActive(true);
               }
             }}
@@ -4493,7 +5071,11 @@ function DietPrescribedSection({
                   ? "border-emerald-600 bg-emerald-50"
                   : "border-gray-300 bg-white hover:border-emerald-400"
               }
-              ${dietChartFiles.length >= 15 ? "opacity-50 pointer-events-none" : ""}
+              ${
+                uploadedPDFs.length >= 15 || isUploading
+                  ? "opacity-50 pointer-events-none"
+                  : ""
+              }
             `}
           >
             <label
@@ -4501,50 +5083,57 @@ function DietPrescribedSection({
               className="flex flex-col items-center gap-2 cursor-pointer"
             >
               <span className="p-3 bg-emerald-50 rounded-full text-emerald-700">
-                <Upload className="w-6 h-6" />
+                {isUploading ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <Upload className="w-6 h-6" />
+                )}
               </span>
               <div className="text-sm text-slate-600 font-medium">
-                {dietChartFiles.length >= 15
+                {isUploading
+                  ? "Uploading..."
+                  : uploadedPDFs.length >= 15
                   ? "Maximum 15 files reached"
                   : "Tap to upload or drag PDF files here"}
               </div>
               <div className="text-xs text-slate-400">
-                PDF only · Max 10MB per file · Uploads to R2 when you Save
+                PDF only · Max 10MB per file · Uploads immediately to R2
               </div>
-              {dietChartFiles.length > 0 && (
+              {uploadedPDFs.length > 0 && (
                 <div className="text-xs text-slate-500 font-medium mt-1">
-                  {dietChartFiles.length} / 15 files
+                  {uploadedPDFs.length} / 15 files
                 </div>
               )}
 
               <input
+                key={`pdf-${pdfInputKey}`}
                 id="pdf-upload"
                 type="file"
                 accept=".pdf,application/pdf"
                 multiple
                 className="hidden"
                 onChange={handleFileChange}
-                disabled={dietChartFiles.length >= 15}
+                disabled={uploadedPDFs.length >= 15 || isUploading}
               />
             </label>
           </div>
 
-          {/* Local Files Preview (Being Uploaded) */}
+          {/* Local Files Preview (Failed Uploads Only) */}
           {dietChartFiles.length > 0 && (
             <div className="mt-4">
               <p className="text-sm font-medium text-slate-700 mb-3">
-                {`Selected Files (${dietChartFiles.length})`}
+                {`Failed Uploads (${dietChartFiles.length}) - Click to retry`}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {dietChartFiles.map((file, index) => (
                   <div
                     key={index}
-                    className="relative group rounded-lg overflow-hidden border border-blue-200 bg-blue-50 p-4 transition-all"
+                    className="relative group rounded-lg overflow-hidden border border-orange-200 bg-orange-50 p-4 transition-all"
                   >
                     {/* PDF Icon */}
                     <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-blue-100 flex-shrink-0">
-                        <FileText className="w-6 h-6 text-blue-600" />
+                      <div className="p-2 rounded-lg bg-orange-100 flex-shrink-0">
+                        <FileText className="w-6 h-6 text-orange-600" />
                       </div>
 
                       {/* File Info */}
@@ -4558,8 +5147,8 @@ function DietPrescribedSection({
                         <p className="text-xs text-slate-500 mb-2">
                           {formatFileSize(file.size)}
                         </p>
-                        <p className="text-xs text-blue-600 font-medium">
-                          Ready to upload (will upload to R2 on Save)
+                        <p className="text-xs text-orange-600 font-medium">
+                          Upload failed - will retry on next selection
                         </p>
                       </div>
 
@@ -4569,6 +5158,56 @@ function DietPrescribedSection({
                         onClick={() => removeFile(index)}
                         className="flex-shrink-0 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full transition"
                         title="Remove file"
+                      >
+                        <XIcon className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Uploaded PDFs Preview */}
+          {uploadedPDFs.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-slate-700 mb-3">
+                Uploaded PDFs ({uploadedPDFs.length})
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {uploadedPDFs.map((pdf, index) => (
+                  <div
+                    key={pdf.id || index}
+                    className="relative group rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50 p-4 transition-all"
+                  >
+                    {/* PDF Icon */}
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
+                        <FileText className="w-6 h-6 text-emerald-600" />
+                      </div>
+
+                      {/* File Info */}
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="text-sm font-medium text-slate-800 truncate mb-1"
+                          title={pdf.fileName}
+                        >
+                          {pdf.fileName}
+                        </p>
+                        <p className="text-xs text-slate-500 mb-2">
+                          {formatFileSize(pdf.sizeInBytes)}
+                        </p>
+                        <p className="text-xs text-emerald-600 font-medium">
+                          Uploaded to R2
+                        </p>
+                      </div>
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={() => removeUploadedPDF(index)}
+                        className="flex-shrink-0 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full transition opacity-0 group-hover:opacity-100"
+                        title="Remove PDF"
                       >
                         <XIcon className="w-3 h-3" />
                       </button>
