@@ -124,6 +124,15 @@ export default function AppointmentDetailsPage() {
     setLoadingData(true);
     try {
       const response = await getAppointmentDetails(appointmentId);
+      
+      // ✅ Filter recalls by appointmentId (safety layer)
+      if (response.appointment.patient?.recalls) {
+        const filteredRecalls = response.appointment.patient.recalls.filter(
+          (recall: any) => recall.appointmentId === appointmentId
+        );
+        response.appointment.patient.recalls = filteredRecalls;
+      }
+      
       setAppointment(response.appointment);
     } catch (error: any) {
       toast.error(

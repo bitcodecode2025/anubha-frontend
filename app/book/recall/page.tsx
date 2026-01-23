@@ -302,6 +302,18 @@ export default function RecallPage() {
         throw new Error(`Plan price is missing. Please select a plan again.`);
       }
 
+      // Check for existing appointmentId before creating (persist across navigation)
+      const existingAppointmentId =
+        form.appointmentId ||
+        (() => {
+          try {
+            const saved = localStorage.getItem("bookingForm");
+            return saved ? JSON.parse(saved).appointmentId : null;
+          } catch {
+            return null;
+          }
+        })();
+
       const appointmentData = {
         patientId: form.patientId,
         planSlug: form.planSlug,
@@ -314,6 +326,7 @@ export default function RecallPage() {
 
       const appointmentResponse = await createAppointment({
         ...appointmentData,
+        appointmentId: existingAppointmentId || undefined, // Pass existing ID if available
         bookingProgress: "RECALL", // User has completed recall, next step is slot
       });
 
@@ -345,13 +358,45 @@ export default function RecallPage() {
           quantity: e.quantity,
           notes: e.notes || undefined,
         })),
-        appointmentId: appointmentResponse.data.id, // Link recall to appointment
+        appointmentId: appointmentResponse.data.id, // ✅ Link recall to appointment
       };
+
+      // ✅ Add validation check
+      if (!recallData.appointmentId) {
+        toast.error("Appointment ID is required");
+        return;
+      }
 
       const recallResponse = await createRecall(recallData);
 
-      // Store appointmentId in form context for slot selection
-      setForm({ appointmentId: appointmentResponse.data.id });
+      // Store appointmentId in form context and localStorage for persistence
+      const appointmentId = appointmentResponse.data.id;
+      setForm({ appointmentId });
+
+      // Also update localStorage to persist across navigation
+      try {
+        const saved = localStorage.getItem("bookingForm");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          localStorage.setItem(
+            "bookingForm",
+            JSON.stringify({
+              ...parsed,
+              appointmentId,
+            })
+          );
+        } else {
+          localStorage.setItem(
+            "bookingForm",
+            JSON.stringify({
+              appointmentId,
+            })
+          );
+        }
+      } catch (err) {
+        // Non-critical - localStorage update failed, but form state is updated
+        console.warn("Failed to persist appointmentId to localStorage:", err);
+      }
 
       toast.success("Recall and appointment saved successfully!");
       router.push("/book/slot");

@@ -32,6 +32,7 @@ import toast from "react-hot-toast";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 import SuccessNotification from "@/components/admin/SuccessNotification";
 import BabySolidPlanOptions from "@/components/appointments/BabySolidPlanOptions";
+import { formatDateIST, formatTimeIST } from "@/lib/date";
 
 const MIN_SEARCH_LENGTH = 2;
 const DEBOUNCE_DELAY = 400;
@@ -50,6 +51,7 @@ export default function AdminAppointmentsPage() {
   const initialStatus = searchParams.get("status") || "";
   const initialMode = searchParams.get("mode") || "";
   const initialQuery = searchParams.get("q") || "";
+  const initialSort = searchParams.get("sort") || "latest";
 
   const [page, setPage] = useState(Math.max(1, initialPage));
   const [total, setTotal] = useState(0);
@@ -68,6 +70,9 @@ export default function AdminAppointmentsPage() {
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [modeFilter, setModeFilter] = useState<string>(initialMode);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [sortByDate, setSortByDate] = useState<"latest" | "oldest">(
+    initialSort === "oldest" ? "oldest" : "latest"
+  );
 
   // Refs for cleanup and cancellation
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -90,7 +95,7 @@ export default function AdminAppointmentsPage() {
 
   // Helper to keep URL in sync with current filters & pagination
   const syncUrlWithState = useCallback(
-    (overrides?: Partial<{ page: number; limit: number; status: string; mode: string; q: string }>) => {
+    (overrides?: Partial<{ page: number; limit: number; status: string; mode: string; q: string; sort: string }>) => {
       const params = new URLSearchParams(searchParams.toString());
 
       const effectivePage = overrides?.page ?? page;
@@ -98,6 +103,7 @@ export default function AdminAppointmentsPage() {
       const effectiveStatus = overrides?.status ?? statusFilter;
       const effectiveMode = overrides?.mode ?? modeFilter;
       const effectiveQuery = overrides?.q ?? searchQuery;
+      const effectiveSort = overrides?.sort ?? sortByDate;
 
       params.set("page", String(effectivePage));
       params.set("limit", String(effectiveLimit));
@@ -114,13 +120,19 @@ export default function AdminAppointmentsPage() {
         params.delete("q");
       }
 
+      if (effectiveSort && effectiveSort !== "latest") {
+        params.set("sort", effectiveSort);
+      } else {
+        params.delete("sort");
+      }
+
       const queryString = params.toString();
       router.replace(
         queryString ? `/admin/appointments?${queryString}` : "/admin/appointments",
         { scroll: false }
       );
     },
-    [router, searchParams, page, limit, statusFilter, modeFilter, searchQuery]
+    [router, searchParams, page, limit, statusFilter, modeFilter, searchQuery, sortByDate]
   );
 
   // Fetch appointments with cancellation support
@@ -145,6 +157,7 @@ export default function AdminAppointmentsPage() {
         const params: any = { page, limit };
         if (statusFilter) params.status = statusFilter;
         if (modeFilter) params.mode = modeFilter;
+        if (sortByDate && sortByDate !== "latest") params.sort = sortByDate;
         if (search && search.trim().length >= MIN_SEARCH_LENGTH) {
           params.q = search.trim();
         }
@@ -185,7 +198,7 @@ export default function AdminAppointmentsPage() {
         }
       }
     },
-    [page, limit, statusFilter, modeFilter, searchParams]
+    [page, limit, statusFilter, modeFilter, sortByDate, searchParams]
   );
 
   // Debounced search query state
@@ -248,7 +261,7 @@ export default function AdminAppointmentsPage() {
     // Reset to page 1 when filters change (except initial mount)
     if (
       !isInitialMount.current &&
-      (statusFilter || modeFilter || debouncedSearchQuery)
+      (statusFilter || modeFilter || sortByDate !== "latest" || debouncedSearchQuery)
     ) {
       setPage(1);
     }
@@ -274,6 +287,7 @@ export default function AdminAppointmentsPage() {
     page,
     statusFilter,
     modeFilter,
+    sortByDate,
     debouncedSearchQuery,
     user?.role,
     user?.id,
@@ -506,9 +520,9 @@ export default function AdminAppointmentsPage() {
               <div className="h-9 w-24 bg-slate-200 rounded-lg animate-pulse" />
             </div>
           </div>
-        </div>
-      </main>
-    );
+      </div>
+    </main>
+  );
   }
 
   return (
@@ -603,6 +617,22 @@ export default function AdminAppointmentsPage() {
               <option value="ONLINE">Online</option>
             </select>
           </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Sort by Date
+            </label>
+            <select
+              value={sortByDate}
+              onChange={(e) => {
+                setSortByDate(e.target.value as "latest" | "oldest");
+                setPage(1);
+              }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="latest">Latest First</option>
+              <option value="oldest">Oldest First</option>
+            </select>
+          </div>
           {/* Page size selector */}
           <div className="w-full md:w-48">
             <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -691,34 +721,12 @@ export default function AdminAppointmentsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-slate-500 mb-1">Slot Time</p>
                         <p className="text-sm font-medium text-slate-900">
-                          {new Date(appointment.startAt).toLocaleDateString(
-                            "en-IN",
-                            {
-                              weekday: "short",
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            }
-                          )}
+                          {formatDateIST(appointment.startAt, "EEE, dd MMM yyyy")}
                         </p>
                         <p className="text-sm text-slate-600">
-                          {new Date(appointment.startAt).toLocaleTimeString(
-                            "en-IN",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true,
-                            }
-                          )}{" "}
+                          {formatTimeIST(appointment.startAt, "hh:mm a")}{" "}
                           -{" "}
-                          {new Date(appointment.endAt).toLocaleTimeString(
-                            "en-IN",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true,
-                            }
-                          )}
+                          {formatTimeIST(appointment.endAt, "hh:mm a")}
                         </p>
                       </div>
                     </div>
@@ -731,24 +739,10 @@ export default function AdminAppointmentsPage() {
                           Booking Time
                         </p>
                         <p className="text-sm font-medium text-slate-900">
-                          {new Date(appointment.createdAt).toLocaleDateString(
-                            "en-IN",
-                            {
-                              weekday: "short",
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            }
-                          )}
+                          {formatDateIST(appointment.createdAt, "EEE, dd MMM yyyy")}
                         </p>
                         <p className="text-sm text-slate-600">
-                          {new Date(appointment.createdAt).toLocaleTimeString(
-                            "en-IN",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            }
-                          )}
+                          {formatTimeIST(appointment.createdAt, "hh:mm a")}
                         </p>
                       </div>
                     </div>

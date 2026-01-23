@@ -100,7 +100,7 @@ export function DoctorNotesProvider({
       if (initialData) {
         BASE_INFO_FIELDS.forEach((key) => {
           if (key in initialData) {
-            baseInfo[key] = initialData[key];
+            (baseInfo as any)[key] = (initialData as any)[key];
           }
         });
       }
@@ -115,7 +115,7 @@ export function DoctorNotesProvider({
       if (initialData) {
         FOOD_RECALL_FIELDS.forEach((key) => {
           if (key in initialData) {
-            foodRecall[key] = initialData[key];
+            (foodRecall as any)[key] = (initialData as any)[key];
           }
         });
       }
@@ -263,13 +263,13 @@ export function DoctorNotesProvider({
 
         BASE_INFO_FIELDS.forEach((key) => {
           if (key in mergedData) {
-            baseInfo[key] = mergedData[key];
+            (baseInfo as any)[key] = (mergedData as any)[key];
           }
         });
 
         FOOD_RECALL_FIELDS.forEach((key) => {
           if (key in mergedData) {
-            foodRecall[key] = mergedData[key];
+            (foodRecall as any)[key] = (mergedData as any)[key];
           }
         });
 
@@ -432,7 +432,7 @@ export function DoctorNotesProvider({
         case "questionnaire":
           return questionnaireState.questionnaire;
         case "foodFrequency":
-          return foodFrequencyState.foodFrequency;
+          return foodFrequencyState.foodFrequency || {};
         case "healthProfile":
           return healthProfileState.healthProfile || {};
         case "dietPrescribed":
@@ -474,7 +474,9 @@ export function DoctorNotesProvider({
         setQuestionnaireState({ questionnaire: data });
         break;
       case "foodFrequency":
-        setFoodFrequencyState({ foodFrequency: data });
+        setFoodFrequencyState((prev) => ({
+          foodFrequency: { ...(prev.foodFrequency || {}), ...data },
+        }));
         break;
       case "healthProfile":
         setHealthProfileState((prev) => ({
@@ -530,7 +532,7 @@ export function DoctorNotesProvider({
         // Nested path (e.g., breakfast.items)
         setFoodRecallState((prev) => {
           const newData = { ...prev };
-          let current: any = newData[firstKey] || {};
+          let current: any = (newData as any)[firstKey] || {};
           current = { ...current };
           let nested = current;
           for (let i = 0; i < restKeys.length - 1; i++) {
@@ -547,7 +549,37 @@ export function DoctorNotesProvider({
     } else if (firstKey === "questionnaire") {
       updateSectionData("questionnaire", path.length === 1 ? value : { ...getSectionData("questionnaire"), [restKeys.join(".")]: value });
     } else if (firstKey === "foodFrequency") {
-      updateSectionData("foodFrequency", path.length === 1 ? value : { ...getSectionData("foodFrequency"), [restKeys.join(".")]: value });
+      if (path.length === 1) {
+        // Direct field update (e.g., ["foodFrequency"] -> entire object)
+        updateSectionData("foodFrequency", value);
+      } else {
+        // Nested path update (e.g., ["foodFrequency", "dairy", "curdButtermilk"])
+        const currentFoodFrequency = getSectionData("foodFrequency") || {};
+        const updatedFoodFrequency = { ...currentFoodFrequency };
+        
+        // Build nested structure
+        let current: any = updatedFoodFrequency;
+        for (let i = 0; i < restKeys.length - 1; i++) {
+          const key = restKeys[i];
+          if (!current[key] || typeof current[key] !== "object") {
+            current[key] = {};
+          }
+          current[key] = { ...current[key] };
+          current = current[key];
+        }
+        
+        // Set the final value
+        const finalKey = restKeys[restKeys.length - 1];
+        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+          // Merge object values (e.g., { checked: true, frequency: "Daily" })
+          current[finalKey] = { ...(current[finalKey] || {}), ...value };
+        } else {
+          // Set primitive values (e.g., curdButtermilk: "Daily")
+          current[finalKey] = value;
+        }
+        
+        updateSectionData("foodFrequency", updatedFoodFrequency);
+      }
     } else if (firstKey === "healthProfile") {
       if (path.length === 1) {
         // Direct field update (e.g., ["healthProfile"] -> entire object)

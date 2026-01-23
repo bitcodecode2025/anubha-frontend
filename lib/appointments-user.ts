@@ -95,13 +95,14 @@ export interface GetUserAppointmentDetailsResponse {
 }
 
 export async function getMyAppointments(
-  params?: { page?: number; limit?: number; includePending?: boolean }
+  params?: { page?: number; limit?: number; includePending?: boolean; sort?: "latest" | "oldest" }
 ): Promise<GetMyAppointmentsResponse> {
   try {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.set("page", params.page.toString());
     if (params?.limit) queryParams.set("limit", params.limit.toString());
     if (params?.includePending) queryParams.set("includePending", "true");
+    if (params?.sort) queryParams.set("sort", params.sort);
 
     const queryString = queryParams.toString();
     const url = queryString

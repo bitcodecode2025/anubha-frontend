@@ -442,7 +442,7 @@ export default function ProfilePage() {
               <h1 className="text-2xl sm:text-3xl font-bold text-emerald-800 mb-2 break-words px-2">
                 {selectedProfileType === "patient" && selectedPatientDetails
                   ? `${selectedPatientDetails.name}'s Profile`
-                  : "Your Profile in localhost"}
+                  : "Your Profile"}
               </h1>
               <p className="text-slate-600 text-xs sm:text-sm px-2">
                 {selectedProfileType === "patient"

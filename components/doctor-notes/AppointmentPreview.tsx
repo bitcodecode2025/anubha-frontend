@@ -11,6 +11,7 @@ import {
   Package,
 } from "lucide-react";
 import { AppointmentDetails } from "@/lib/appointments-admin";
+import { formatDateTimeIST, formatDateIST } from "@/lib/date";
 
 interface AppointmentPreviewProps {
   appointment: AppointmentDetails;
@@ -137,9 +138,7 @@ export default function AppointmentPreview({
           <div>
             <span className="text-sm text-slate-600">Date of Birth</span>
             <div className="font-medium text-slate-900">
-              {new Date(appointment.patient.dateOfBirth).toLocaleDateString(
-                "en-IN"
-              )}
+              {formatDateIST(appointment.patient.dateOfBirth)}
             </div>
           </div>
           <div className="md:col-span-2">

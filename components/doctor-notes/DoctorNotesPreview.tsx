@@ -24,6 +24,7 @@ import toast from "react-hot-toast";
 
 import { DoctorNoteAttachment } from "@/lib/doctor-notes-api";
 import FoodFrequencySection from "./sections/FoodFrequencySection";
+import { formatDateTimeIST } from "@/lib/date";
 
 interface DoctorNotesPreviewProps {
   formData: DoctorNotesFormData;
@@ -358,13 +359,7 @@ export default function DoctorNotesPreview({
               <Calendar className="w-4 h-4" />
               <span>
                 Created:{" "}
-                {new Date(createdAt).toLocaleString("en-IN", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {formatDateTimeIST(createdAt, "dd MMMM yyyy, hh:mm a")}
               </span>
             </div>
           )}
@@ -373,13 +368,7 @@ export default function DoctorNotesPreview({
               <Calendar className="w-4 h-4" />
               <span>
                 Updated:{" "}
-                {new Date(updatedAt).toLocaleString("en-IN", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {formatDateTimeIST(updatedAt, "dd MMMM yyyy, hh:mm a")}
               </span>
             </div>
           )}

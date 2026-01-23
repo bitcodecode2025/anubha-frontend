@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import {
@@ -26,12 +26,17 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatDateIST, formatTimeIST } from "@/lib/date";
 
 export default function PendingAppointmentsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
+
+  // Refs to prevent infinite loops
+  const isInitialMount = useRef(true);
+  const hasLoadedInitialData = useRef(false);
 
   // Initialize pagination from URL
   const initialPage = Number(searchParams.get("page")) || 1;
@@ -50,9 +55,34 @@ export default function PendingAppointmentsPage() {
     null
   );
 
+  // Memoize fetch function to prevent unnecessary re-renders
+  const fetchPendingAppointments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await getPendingAppointments({ page, limit });
+      setAppointments(response.appointments || []);
+      setTotal(response.total || 0);
+      hasLoadedInitialData.current = true;
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || "Failed to load pending appointments"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [page, limit]);
+
   // Helper to sync URL with current pagination state
   const syncUrlWithState = useCallback(
     (newPage: number, newLimit: number) => {
+      // Prevent URL update if it already matches the state
+      const currentPage = Number(searchParams.get("page")) || 1;
+      const currentLimit = Number(searchParams.get("limit")) || 10;
+      
+      if (currentPage === newPage && currentLimit === newLimit) {
+        return; // URL already matches, no need to update
+      }
+
       const params = new URLSearchParams(searchParams.toString());
       params.set("page", newPage.toString());
       params.set("limit", newLimit.toString());
@@ -62,11 +92,16 @@ export default function PendingAppointmentsPage() {
     [pathname, router, searchParams]
   );
 
-  // Effect to update URL when state changes
+  // Effect to update URL when state changes (but not on initial mount)
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     syncUrlWithState(page, limit);
   }, [page, limit, syncUrlWithState]);
 
+  // Effect to fetch data when user/auth/page/limit changes
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
@@ -79,22 +114,7 @@ export default function PendingAppointmentsPage() {
     }
 
     fetchPendingAppointments();
-  }, [user, authLoading, router, page, limit]);
-
-  async function fetchPendingAppointments() {
-    setLoading(true);
-    try {
-      const response = await getPendingAppointments({ page, limit });
-      setAppointments(response.appointments || []);
-      setTotal(response.total || 0);
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message || "Failed to load pending appointments"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [user, authLoading, router, fetchPendingAppointments]);
 
   async function handleContinueBooking(appointment: PendingAppointment) {
     const nextStepUrl = getNextStepUrl(appointment.bookingProgress);
@@ -240,32 +260,15 @@ export default function PendingAppointmentsPage() {
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4" />
                                 <span>
-                                  {new Date(
-                                    appointment.slot.startAt
-                                  ).toLocaleDateString("en-IN", {
-                                    weekday: "short",
-                                    day: "numeric",
-                                    month: "short",
-                                    year: "numeric",
-                                  })}
+                                  {formatDateIST(appointment.slot.startAt, "EEE, dd MMM yyyy")}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Clock className="w-4 h-4" />
                                 <span>
-                                  {new Date(
-                                    appointment.slot.startAt
-                                  ).toLocaleTimeString("en-IN", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
+                                  {formatTimeIST(appointment.slot.startAt, "hh:mm a")}
                                   {" - "}
-                                  {new Date(
-                                    appointment.slot.endAt
-                                  ).toLocaleTimeString("en-IN", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
+                                  {formatTimeIST(appointment.slot.endAt, "hh:mm a")}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
