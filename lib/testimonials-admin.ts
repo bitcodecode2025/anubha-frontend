@@ -13,6 +13,9 @@ export interface Testimonial {
 interface GetTestimonialsResponse {
   success: boolean;
   testimonials: Testimonial[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 interface CreateTestimonialResponse {
@@ -30,15 +33,37 @@ interface DeleteTestimonialResponse {
   message: string;
 }
 
-export async function getTestimonials(): Promise<Testimonial[]> {
+export async function getTestimonials(
+  params?: {
+    page?: number;
+    limit?: number;
+    isActive?: boolean;
+    search?: string;
+  }
+): Promise<GetTestimonialsResponse> {
   try {
-    const response = await api.get<GetTestimonialsResponse>(
-      "/testimonials/admin"
-    );
-    if (response.data.success && response.data.testimonials) {
-      return response.data.testimonials;
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.set("page", params.page.toString());
+    if (params?.limit) queryParams.set("limit", params.limit.toString());
+    if (params?.isActive !== undefined)
+      queryParams.set("isActive", params.isActive.toString());
+    if (params?.search) queryParams.set("search", params.search);
+
+    const queryString = queryParams.toString();
+    const url = queryString
+      ? `/testimonials/admin?${queryString}`
+      : "/testimonials/admin";
+    const response = await api.get<GetTestimonialsResponse>(url);
+    if (response.data.success) {
+      return response.data;
     }
-    return [];
+    return {
+      success: false,
+      testimonials: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+    };
   } catch (error: any) {
     throw error;
   }

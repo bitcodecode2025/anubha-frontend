@@ -124,6 +124,15 @@ export default function AppointmentDetailsPage() {
     setLoadingData(true);
     try {
       const response = await getAppointmentDetails(appointmentId);
+      
+      // ✅ Filter recalls by appointmentId (safety layer)
+      if (response.appointment.patient?.recalls) {
+        const filteredRecalls = response.appointment.patient.recalls.filter(
+          (recall: any) => recall.appointmentId === appointmentId
+        );
+        response.appointment.patient.recalls = filteredRecalls;
+      }
+      
       setAppointment(response.appointment);
     } catch (error: any) {
       toast.error(
@@ -318,11 +327,11 @@ export default function AppointmentDetailsPage() {
                 {appointment.paymentStatus}
               </div>
             </div>
-            {appointment.amount && (
+            {(appointment.planPrice || appointment.amount) && (
               <div>
                 <div className="text-sm text-slate-600 mb-1">Amount</div>
                 <div className="font-medium text-slate-900">
-                  ₹{appointment.amount}
+                  ₹{appointment.planPrice || appointment.amount}
                 </div>
               </div>
             )}
@@ -479,13 +488,13 @@ export default function AppointmentDetailsPage() {
             <ImageIcon className="w-5 h-5" />
             Uploaded Reports
           </h3>
-          {appointment.patient.files.length === 0 ? (
+          {appointment.files?.length === 0 ? (
             <div className="bg-slate-50 rounded-lg p-6 text-center text-slate-500">
               No reports uploaded
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {appointment.patient.files.map((file) => (
+              {(appointment.files || []).map((file) => (
                 <div
                   key={file.id}
                   className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:border-emerald-300 transition-colors cursor-pointer group"
@@ -658,6 +667,8 @@ export default function AppointmentDetailsPage() {
               updatedAt={doctorNotes.updatedAt}
               isDraft={doctorNotes.isDraft}
               attachments={doctorNotes.attachments}
+              appointmentId={appointmentId}
+              patientEmail={appointment.patient.email}
               onAttachmentDeleted={async () => {
                 // Refresh doctor notes after deletion
                 try {
@@ -665,8 +676,7 @@ export default function AppointmentDetailsPage() {
                   if (response.success && response.doctorNotes) {
                     setDoctorNotes(response.doctorNotes);
                   }
-                } catch (error) {
-                }
+                } catch (error) {}
               }}
               onEdit={() =>
                 router.push(`/admin/appointments/${appointmentId}/notes`)

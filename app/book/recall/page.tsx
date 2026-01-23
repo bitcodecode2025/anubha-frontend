@@ -171,17 +171,9 @@ export default function RecallPage() {
 
     try {
       const uploaded = await uploadFiles(fileArray);
-
-      // Link files to patient if patient exists
-      if (form.patientId && uploaded.length > 0) {
-        const fileIds = uploaded.map((f) => f.id);
-        try {
-          await linkFilesToPatient(form.patientId, fileIds);
-        } catch (err) {
-          // If link fails, files are still uploaded but not linked
-          // This is okay, they can be linked later
-        }
-      }
+      // CRITICAL: Do NOT link files to patient here.
+      // Reports must be scoped to a specific appointment (appointmentId).
+      // We'll link them after the appointment is created in submitRecall().
 
       setUploadedFiles((prev) => [...prev, ...uploaded]);
       toast.success(`Successfully uploaded ${uploaded.length} file(s)`);
@@ -265,10 +257,7 @@ export default function RecallPage() {
       // Link uploaded files to patient if any
       if (uploadedFiles.length > 0) {
         try {
-          await linkFilesToPatient(
-            form.patientId,
-            uploadedFiles.map((f) => f.id)
-          );
+          // Intentionally delayed until appointment exists (see below).
         } catch (fileError: any) {
           // Don't fail the entire submission if file linking fails
         }
@@ -313,6 +302,18 @@ export default function RecallPage() {
         throw new Error(`Plan price is missing. Please select a plan again.`);
       }
 
+      // Check for existing appointmentId before creating (persist across navigation)
+      const existingAppointmentId =
+        form.appointmentId ||
+        (() => {
+          try {
+            const saved = localStorage.getItem("bookingForm");
+            return saved ? JSON.parse(saved).appointmentId : null;
+          } catch {
+            return null;
+          }
+        })();
+
       const appointmentData = {
         patientId: form.patientId,
         planSlug: form.planSlug,
@@ -325,11 +326,25 @@ export default function RecallPage() {
 
       const appointmentResponse = await createAppointment({
         ...appointmentData,
+        appointmentId: existingAppointmentId || undefined, // Pass existing ID if available
         bookingProgress: "RECALL", // User has completed recall, next step is slot
       });
 
       if (!appointmentResponse.success || !appointmentResponse.data?.id) {
         throw new Error("Failed to create appointment");
+      }
+
+      // Link uploaded files to patient + appointment (strict scoping)
+      if (uploadedFiles.length > 0) {
+        try {
+          await linkFilesToPatient(
+            form.patientId,
+            uploadedFiles.map((f) => f.id),
+            appointmentResponse.data.id
+          );
+        } catch (fileError: any) {
+          // Don't fail the entire submission if file linking fails
+        }
       }
 
       // Create recall with entries and link to appointment
@@ -343,13 +358,45 @@ export default function RecallPage() {
           quantity: e.quantity,
           notes: e.notes || undefined,
         })),
-        appointmentId: appointmentResponse.data.id, // Link recall to appointment
+        appointmentId: appointmentResponse.data.id, // ✅ Link recall to appointment
       };
+
+      // ✅ Add validation check
+      if (!recallData.appointmentId) {
+        toast.error("Appointment ID is required");
+        return;
+      }
 
       const recallResponse = await createRecall(recallData);
 
-      // Store appointmentId in form context for slot selection
-      setForm({ appointmentId: appointmentResponse.data.id });
+      // Store appointmentId in form context and localStorage for persistence
+      const appointmentId = appointmentResponse.data.id;
+      setForm({ appointmentId });
+
+      // Also update localStorage to persist across navigation
+      try {
+        const saved = localStorage.getItem("bookingForm");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          localStorage.setItem(
+            "bookingForm",
+            JSON.stringify({
+              ...parsed,
+              appointmentId,
+            })
+          );
+        } else {
+          localStorage.setItem(
+            "bookingForm",
+            JSON.stringify({
+              appointmentId,
+            })
+          );
+        }
+      } catch (err) {
+        // Non-critical - localStorage update failed, but form state is updated
+        console.warn("Failed to persist appointmentId to localStorage:", err);
+      }
 
       toast.success("Recall and appointment saved successfully!");
       router.push("/book/slot");

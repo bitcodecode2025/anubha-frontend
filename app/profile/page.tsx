@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import {
@@ -16,6 +16,11 @@ import {
   Clock,
   ArrowRight,
   MapPin,
+  Pencil,
+  Upload,
+  Trash2,
+  X,
+  Image as ImageIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 // Removed appointments imports - now handled in separate pages
@@ -26,8 +31,13 @@ import {
   type PatientDetails,
 } from "@/lib/patient";
 import { ChevronDown } from "lucide-react";
-import { sendAddEmailOtp, verifyAddEmailOtp } from "@/lib/auth";
-import OtpInput from "@/components/auth/OtpInput";
+import {
+  getAdminProfilePicture,
+  uploadAdminProfilePicture,
+  updateAdminProfilePicture,
+  deleteAdminProfilePicture,
+} from "@/lib/admin-profile";
+import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -57,15 +67,16 @@ export default function ProfilePage() {
   } | null>(null);
   const [loadingAdminData, setLoadingAdminData] = useState(false);
 
-  // Add Email state
-  const [showAddEmail, setShowAddEmail] = useState(false);
-  const [emailToAdd, setEmailToAdd] = useState("");
-  const [emailOtp, setEmailOtp] = useState("");
-  const [sendingEmailOtp, setSendingEmailOtp] = useState(false);
-  const [verifyingEmailOtp, setVerifyingEmailOtp] = useState(false);
-  const [emailOtpSent, setEmailOtpSent] = useState(false);
-  const [emailOtpError, setEmailOtpError] = useState("");
-  const [emailResendCooldown, setEmailResendCooldown] = useState(0);
+  // Profile picture state (for admin)
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(
+    null
+  );
+  const [loadingProfilePicture, setLoadingProfilePicture] = useState(false);
+  const [showProfilePictureMenu, setShowProfilePictureMenu] = useState(false);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [deletingPicture, setDeletingPicture] = useState(false);
+  const [deletePictureModalOpen, setDeletePictureModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Do NOT redirect while auth is loading
@@ -121,11 +132,107 @@ export default function ProfilePage() {
   useEffect(() => {
     if (loading) return; // Wait for auth to resolve
     if (!user) return; // Do not call APIs if user is null
-    if (user.role === "ADMIN") return; // Admins don't need this data
+    if (user.role === "ADMIN") {
+      // Fetch admin profile picture
+      fetchAdminProfilePicture();
+      return;
+    }
 
     fetchPatients();
     // Removed appointments and pending appointments fetching - now in separate pages
   }, [user, loading, fetchPatients]);
+
+  // Fetch admin profile picture
+  const fetchAdminProfilePicture = useCallback(async () => {
+    if (user?.role !== "ADMIN") return;
+    setLoadingProfilePicture(true);
+    try {
+      const data = await getAdminProfilePicture();
+      setProfilePictureUrl(data.profilePictureUrl);
+    } catch (error: any) {
+      // Silently fail - profile picture is optional
+      console.error("Failed to load profile picture:", error);
+    } finally {
+      setLoadingProfilePicture(false);
+    }
+  }, [user]);
+
+  // Handle profile picture file selection
+  const handleProfilePictureFileSelect = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be less than 10MB");
+      return;
+    }
+
+    handleUploadProfilePicture(file);
+  };
+
+  // Upload/Update profile picture
+  const handleUploadProfilePicture = async (file: File) => {
+    setUploadingPicture(true);
+    setShowProfilePictureMenu(false);
+    try {
+      const hasExistingPicture = !!profilePictureUrl;
+      const result = hasExistingPicture
+        ? await updateAdminProfilePicture(file)
+        : await uploadAdminProfilePicture(file);
+
+      if (result.success) {
+        setProfilePictureUrl(result.profilePictureUrl);
+        toast.success(
+          hasExistingPicture
+            ? "Profile picture updated successfully!"
+            : "Profile picture uploaded successfully!"
+        );
+        // Refresh the page to update navbar
+        window.location.reload();
+      }
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || "Failed to upload profile picture"
+      );
+    } finally {
+      setUploadingPicture(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  // Delete profile picture
+  const handleDeleteProfilePicture = async () => {
+    setDeletingPicture(true);
+    try {
+      const result = await deleteAdminProfilePicture();
+      if (result.success) {
+        setProfilePictureUrl(null);
+        toast.success(
+          result.message || "Profile picture deleted successfully!"
+        );
+        setDeletePictureModalOpen(false);
+        // Refresh the page to update navbar
+        window.location.reload();
+      }
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || "Failed to delete profile picture"
+      );
+    } finally {
+      setDeletingPicture(false);
+    }
+  };
 
   // Profile switching effect - runs when profile type or patient ID changes
   // CRITICAL: Do NOT call APIs while auth is loading or user is null
@@ -150,83 +257,6 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     await logout();
     router.push("/");
-  };
-
-  // Add Email handlers
-  const handleSendEmailOtp = async () => {
-    if (!emailToAdd.trim()) {
-      setEmailOtpError("Please enter an email address");
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailToAdd.trim())) {
-      setEmailOtpError("Please enter a valid email address");
-      return;
-    }
-
-    setSendingEmailOtp(true);
-    setEmailOtpError("");
-
-    try {
-      await sendAddEmailOtp({ email: emailToAdd.trim() });
-      setEmailOtpSent(true);
-      setEmailResendCooldown(60);
-      toast.success("Verification code sent to your email");
-
-      // Start cooldown timer
-      const interval = setInterval(() => {
-        setEmailResendCooldown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } catch (error: any) {
-      const errorMessage =
-        error?.response?.data?.message || "Failed to send verification code";
-      setEmailOtpError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setSendingEmailOtp(false);
-    }
-  };
-
-  const handleVerifyEmailOtp = async () => {
-    if (emailOtp.length !== 4) {
-      setEmailOtpError("Please enter the 4-digit verification code");
-      return;
-    }
-
-    setVerifyingEmailOtp(true);
-    setEmailOtpError("");
-
-    try {
-      const response = (await verifyAddEmailOtp({
-        email: emailToAdd.trim(),
-        otp: emailOtp,
-      })) as { success: boolean; user?: any; message?: string };
-
-      if (response.success && response.user) {
-        // Force refresh to get updated user data
-        window.location.reload();
-      }
-    } catch (error: any) {
-      const errorMessage =
-        error?.response?.data?.message || "Failed to verify code";
-      setEmailOtpError(errorMessage);
-      toast.error(errorMessage);
-      setEmailOtp("");
-    } finally {
-      setVerifyingEmailOtp(false);
-    }
-  };
-
-  const handleResendEmailOtp = async () => {
-    if (emailResendCooldown > 0) return;
-    await handleSendEmailOtp();
   };
 
   if (loading) {
@@ -304,20 +334,107 @@ export default function ProfilePage() {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                className={`w-24 h-24 mx-auto mb-4 rounded-full shadow-lg overflow-hidden ${
+                className={`relative w-32 h-32 mx-auto mb-4 rounded-full shadow-xl overflow-visible ${
                   user?.role === "ADMIN"
                     ? "border-4 border-emerald-400"
                     : "bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center"
                 }`}
               >
                 {user?.role === "ADMIN" ? (
-                  <Image
-                    src="/images/anubha_profile_hd.webp"
-                    alt="Admin Profile"
-                    width={200}
-                    height={200}
-                    className="w-full h-full object-cover"
-                  />
+                  <>
+                    {loadingProfilePicture ? (
+                      <div className="w-full h-full flex items-center justify-center bg-emerald-100 rounded-full">
+                        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                      </div>
+                    ) : profilePictureUrl ? (
+                      <Image
+                        src={profilePictureUrl}
+                        alt="Admin Profile"
+                        width={200}
+                        height={200}
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    ) : (
+                      <Image
+                        src="/images/anubha_profile_hd.webp"
+                        alt="Admin Profile"
+                        width={200}
+                        height={200}
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    )}
+                    {/* Upload Progress Overlay */}
+                    {uploadingPicture && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-black/70 backdrop-blur-md rounded-full flex flex-col items-center justify-center z-10"
+                      >
+                        {/* Modern Spinner */}
+                        <div className="relative w-20 h-20 mb-4">
+                          {/* Outer ring with gradient */}
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{
+                              duration: 1.5,
+                              repeat: Infinity,
+                              ease: "linear",
+                            }}
+                            className="absolute inset-0 rounded-full"
+                            style={{
+                              background: `conic-gradient(from 0deg, transparent 0deg, #10b981 90deg, transparent 90deg)`,
+                            }}
+                          />
+                          {/* Inner white ring */}
+                          <div className="absolute inset-2 bg-white rounded-full flex items-center justify-center">
+                            <motion.div
+                              animate={{
+                                scale: [1, 1.1, 1],
+                                opacity: [0.8, 1, 0.8],
+                              }}
+                              transition={{
+                                duration: 1.2,
+                                repeat: Infinity,
+                                ease: "easeInOut",
+                              }}
+                              className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center"
+                            >
+                              <Upload className="w-4 h-4 text-white" />
+                            </motion.div>
+                          </div>
+                        </div>
+                        <motion.p
+                          animate={{ opacity: [0.7, 1, 0.7] }}
+                          transition={{
+                            duration: 1.5,
+                            repeat: Infinity,
+                            ease: "easeInOut",
+                          }}
+                          className="text-white text-base font-bold"
+                        >
+                          Uploading...
+                        </motion.p>
+                        <p className="text-white/90 text-sm mt-1">
+                          Please wait
+                        </p>
+                      </motion.div>
+                    )}
+                    {/* Edit Icon - Bottom Right Outside */}
+                    {!uploadingPicture && (
+                      <motion.button
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowProfilePictureMenu(true)}
+                        disabled={uploadingPicture || deletingPicture}
+                        className="absolute -bottom-1 -right-1 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-xl border-4 border-white flex items-center justify-center hover:shadow-2xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed z-20"
+                      >
+                        <Pencil className="w-5 h-5 text-white" />
+                      </motion.button>
+                    )}
+                  </>
                 ) : (
                   <User className="w-12 h-12 text-white" />
                 )}
@@ -416,150 +533,6 @@ export default function ProfilePage() {
                         </p>
                       </div>
                     </div>
-                  </motion.div>
-                )}
-
-                {/* Add Email - Only for self profile when email is null */}
-                {selectedProfileType === "self" && !user.email && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.5 }}
-                    className="p-4 rounded-xl bg-white/60 border border-emerald-100 shadow-sm"
-                  >
-                    {!showAddEmail ? (
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
-                            <Mail className="w-5 h-5 text-emerald-700" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-slate-500 font-medium">
-                              Email Address
-                            </p>
-                            <p className="text-slate-600 text-sm">
-                              No email address added
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setShowAddEmail(true)}
-                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors whitespace-nowrap"
-                        >
-                          Add Email
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-emerald-100 flex-shrink-0">
-                            <Mail className="w-5 h-5 text-emerald-700" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-slate-500 font-medium mb-2">
-                              Add Email Address
-                            </p>
-                            {!emailOtpSent ? (
-                              <div className="space-y-3">
-                                <input
-                                  type="email"
-                                  value={emailToAdd}
-                                  onChange={(e) => {
-                                    setEmailToAdd(e.target.value);
-                                    setEmailOtpError("");
-                                  }}
-                                  placeholder="Enter your email address"
-                                  className="w-full px-4 py-2 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                                  disabled={sendingEmailOtp}
-                                />
-                                {emailOtpError && (
-                                  <p className="text-sm text-red-600">
-                                    {emailOtpError}
-                                  </p>
-                                )}
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={handleSendEmailOtp}
-                                    disabled={sendingEmailOtp}
-                                    className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    {sendingEmailOtp ? (
-                                      <span className="flex items-center justify-center gap-2">
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        Sending...
-                                      </span>
-                                    ) : (
-                                      "Verify Email"
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setShowAddEmail(false);
-                                      setEmailToAdd("");
-                                      setEmailOtpError("");
-                                    }}
-                                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                <p className="text-sm text-slate-600 mb-2">
-                                  Enter the 4-digit code sent to{" "}
-                                  <span className="font-semibold">
-                                    {emailToAdd}
-                                  </span>
-                                </p>
-                                <OtpInput
-                                  value={emailOtp}
-                                  onChange={(value) => {
-                                    setEmailOtp(value);
-                                    setEmailOtpError("");
-                                  }}
-                                  error={!!emailOtpError}
-                                  disabled={verifyingEmailOtp}
-                                  autoFocus={true}
-                                />
-                                {emailOtpError && (
-                                  <p className="text-sm text-red-600">
-                                    {emailOtpError}
-                                  </p>
-                                )}
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={handleVerifyEmailOtp}
-                                    disabled={
-                                      verifyingEmailOtp || emailOtp.length !== 4
-                                    }
-                                    className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    {verifyingEmailOtp ? (
-                                      <span className="flex items-center justify-center gap-2">
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        Verifying...
-                                      </span>
-                                    ) : (
-                                      "Verify Code"
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={handleResendEmailOtp}
-                                    disabled={emailResendCooldown > 0}
-                                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    {emailResendCooldown > 0
-                                      ? `Resend (${emailResendCooldown}s)`
-                                      : "Resend"}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </motion.div>
                 )}
 
@@ -781,7 +754,167 @@ export default function ProfilePage() {
         </motion.div>
       </div>
 
-      {/* Removed modals - now handled in separate pages */}
+      {/* Profile Picture Menu Modal */}
+      <AnimatePresence>
+        {showProfilePictureMenu && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowProfilePictureMenu(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9998]"
+            />
+            {/* Modal */}
+            <div className="fixed inset-0 flex items-center justify-center z-[9999] p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{
+                  type: "spring",
+                  damping: 25,
+                  stiffness: 300,
+                  duration: 0.3,
+                }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative overflow-hidden border border-slate-200/50"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Gradient Header */}
+                <div className="relative bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 px-6 py-5">
+                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMC41IiBvcGFjaXR5PSIwLjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-20"></div>
+                  <div className="relative flex items-center justify-between">
+                    <div>
+                      <h3 className="text-2xl font-bold text-white mb-1">
+                        Profile Picture
+                      </h3>
+                      <p className="text-emerald-50 text-sm">
+                        Update your profile photo
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowProfilePictureMenu(false)}
+                      className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors backdrop-blur-sm"
+                    >
+                      <X className="w-5 h-5 text-white" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-6">
+                  {/* Upload Area */}
+                  <div className="mb-6">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png"
+                      onChange={handleProfilePictureFileSelect}
+                      className="hidden"
+                      id="profile-picture-input"
+                      disabled={uploadingPicture}
+                    />
+                    <label
+                      htmlFor="profile-picture-input"
+                      className={`group relative flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl transition-all cursor-pointer overflow-hidden ${
+                        uploadingPicture
+                          ? "border-emerald-400 bg-emerald-50 cursor-wait"
+                          : "border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 hover:bg-emerald-50"
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {uploadingPicture ? (
+                        <div className="flex flex-col items-center gap-4">
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{
+                              duration: 1,
+                              repeat: Infinity,
+                              ease: "linear",
+                            }}
+                            className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full"
+                          />
+                          <div className="text-center">
+                            <p className="text-emerald-700 font-semibold">
+                              Uploading...
+                            </p>
+                            <p className="text-emerald-600 text-sm mt-1">
+                              Please wait
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                              <Upload className="w-7 h-7 text-white" />
+                            </div>
+                            <div className="text-center">
+                              <p className="text-slate-700 font-semibold text-base">
+                                {profilePictureUrl
+                                  ? "Choose a new photo"
+                                  : "Upload a photo"}
+                              </p>
+                              <p className="text-slate-500 text-sm mt-1">
+                                Click to browse or drag and drop
+                              </p>
+                            </div>
+                          </div>
+                          <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/0 to-teal-400/0 group-hover:from-emerald-400/5 group-hover:to-teal-400/5 transition-all" />
+                        </>
+                      )}
+                    </label>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="space-y-3">
+                    {profilePictureUrl && (
+                      <button
+                        onClick={() => {
+                          setShowProfilePictureMenu(false);
+                          setDeletePictureModalOpen(true);
+                        }}
+                        disabled={deletingPicture || uploadingPicture}
+                        className="w-full flex items-center justify-center gap-3 px-5 py-3.5 bg-white border-2 border-red-200 text-red-600 rounded-xl hover:bg-red-50 hover:border-red-300 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed group"
+                      >
+                        <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                        <span>Remove Current Picture</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Info Footer */}
+                  <div className="mt-6 pt-5 border-t border-slate-200">
+                    <div className="flex items-start gap-2">
+                      <div className="p-1.5 rounded-lg bg-slate-100 flex-shrink-0">
+                        <ImageIcon className="w-4 h-4 text-slate-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-slate-700 mb-1">
+                          Supported formats
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          JPG, PNG, or JPEG • Maximum 10MB
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Profile Picture Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deletePictureModalOpen}
+        onClose={() => setDeletePictureModalOpen(false)}
+        onConfirm={handleDeleteProfilePicture}
+        title="Delete Profile Picture"
+        message="Are you sure you want to delete your profile picture? This action cannot be undone."
+        isLoading={deletingPicture}
+      />
     </div>
   );
 }

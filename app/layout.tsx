@@ -7,6 +7,7 @@ import Footer from "@/components/layout/Footer";
 import ThemeContextProvider from "@/lib/themeProvider";
 import Providers from "./Providers";
 import LogoutAnimation from "@/components/ui/LogoutAnimation";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -206,16 +207,18 @@ export default function RootLayout({
             __html: JSON.stringify(personSchema),
           }}
         />
-        <Providers>
-          <AuthProvider>
-            <ThemeContextProvider>
-              <LogoutAnimation />
-              <Navbar />
-              <main className="min-h-screen pt-20">{children}</main>
-              <Footer />
-            </ThemeContextProvider>
-          </AuthProvider>
-        </Providers>
+        <ErrorBoundary context="Root Layout">
+          <Providers>
+            <AuthProvider>
+              <ThemeContextProvider>
+                <LogoutAnimation />
+                <Navbar />
+                <main className="min-h-screen pt-20">{children}</main>
+                <Footer />
+              </ThemeContextProvider>
+            </AuthProvider>
+          </Providers>
+        </ErrorBoundary>
       </body>
     </html>
   );

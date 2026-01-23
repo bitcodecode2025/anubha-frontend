@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import {
   getPendingAppointments,
@@ -16,6 +16,7 @@ import {
   MapPin,
   Video,
   ChevronLeft,
+  ChevronRight,
   Loader2,
   ArrowRight,
   Trash2,
@@ -25,18 +26,82 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatDateIST, formatTimeIST } from "@/lib/date";
 
 export default function PendingAppointmentsPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
+
+  // Refs to prevent infinite loops
+  const isInitialMount = useRef(true);
+  const hasLoadedInitialData = useRef(false);
+
+  // Initialize pagination from URL
+  const initialPage = Number(searchParams.get("page")) || 1;
+  const initialLimit = Number(searchParams.get("limit")) || 10;
+
   const [appointments, setAppointments] = useState<PendingAppointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(Math.max(1, initialPage));
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(
+    Math.min(200, Math.max(1, initialLimit || 10))
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(
     null
   );
 
+  // Memoize fetch function to prevent unnecessary re-renders
+  const fetchPendingAppointments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await getPendingAppointments({ page, limit });
+      setAppointments(response.appointments || []);
+      setTotal(response.total || 0);
+      hasLoadedInitialData.current = true;
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || "Failed to load pending appointments"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [page, limit]);
+
+  // Helper to sync URL with current pagination state
+  const syncUrlWithState = useCallback(
+    (newPage: number, newLimit: number) => {
+      // Prevent URL update if it already matches the state
+      const currentPage = Number(searchParams.get("page")) || 1;
+      const currentLimit = Number(searchParams.get("limit")) || 10;
+      
+      if (currentPage === newPage && currentLimit === newLimit) {
+        return; // URL already matches, no need to update
+      }
+
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", newPage.toString());
+      params.set("limit", newLimit.toString());
+
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  // Effect to update URL when state changes (but not on initial mount)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    syncUrlWithState(page, limit);
+  }, [page, limit, syncUrlWithState]);
+
+  // Effect to fetch data when user/auth/page/limit changes
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
@@ -49,21 +114,7 @@ export default function PendingAppointmentsPage() {
     }
 
     fetchPendingAppointments();
-  }, [user, authLoading, router]);
-
-  async function fetchPendingAppointments() {
-    setLoading(true);
-    try {
-      const response = await getPendingAppointments();
-      setAppointments(response.appointments || []);
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message || "Failed to load pending appointments"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [user, authLoading, router, fetchPendingAppointments]);
 
   async function handleContinueBooking(appointment: PendingAppointment) {
     const nextStepUrl = getNextStepUrl(appointment.bookingProgress);
@@ -209,32 +260,15 @@ export default function PendingAppointmentsPage() {
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4" />
                                 <span>
-                                  {new Date(
-                                    appointment.slot.startAt
-                                  ).toLocaleDateString("en-IN", {
-                                    weekday: "short",
-                                    day: "numeric",
-                                    month: "short",
-                                    year: "numeric",
-                                  })}
+                                  {formatDateIST(appointment.slot.startAt, "EEE, dd MMM yyyy")}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Clock className="w-4 h-4" />
                                 <span>
-                                  {new Date(
-                                    appointment.slot.startAt
-                                  ).toLocaleTimeString("en-IN", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
+                                  {formatTimeIST(appointment.slot.startAt, "hh:mm a")}
                                   {" - "}
-                                  {new Date(
-                                    appointment.slot.endAt
-                                  ).toLocaleTimeString("en-IN", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
+                                  {formatTimeIST(appointment.slot.endAt, "hh:mm a")}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
@@ -299,6 +333,91 @@ export default function PendingAppointmentsPage() {
                   </div>
                 </motion.div>
               ))}
+
+              {/* Pagination */}
+              {total > limit && (
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gradient-to-br from-emerald-50/80 to-white rounded-xl p-5 border-2 border-emerald-200/60 shadow-md shadow-emerald-100/50">
+                  {/* Page Size Selector */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold text-slate-800">
+                      Page Size:
+                    </label>
+                    <select
+                      value={limit}
+                      onChange={(e) => {
+                        setLimit(Number(e.target.value));
+                        setPage(1); // Reset to page 1 when limit changes
+                      }}
+                      className="px-3 py-1.5 border-2 border-emerald-300/60 bg-white rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium text-slate-800 shadow-sm hover:border-emerald-400 transition-colors"
+                    >
+                      <option value="10">10</option>
+                      <option value="20">20</option>
+                      <option value="50">50</option>
+                    </select>
+                  </div>
+
+                  {/* Pagination Info */}
+                  <div className="text-sm font-semibold text-slate-800">
+                    Showing {(page - 1) * limit + 1} to{" "}
+                    {Math.min(page * limit, total)} of {total} appointments
+                  </div>
+
+                  {/* Pagination Controls */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="p-2.5 border-2 border-emerald-300/60 bg-white rounded-lg hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-emerald-300/60 transition-all duration-200 text-emerald-700 font-semibold"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+
+                    {/* Page Numbers */}
+                    <div className="flex items-center gap-1.5">
+                      {Array.from(
+                        { length: Math.min(5, Math.ceil(total / limit)) },
+                        (_, i) => {
+                          const totalPages = Math.ceil(total / limit);
+                          let pageNum: number;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (page <= 3) {
+                            pageNum = i + 1;
+                          } else if (page >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = page - 2 + i;
+                          }
+
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setPage(pageNum)}
+                              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                                page === pageNum
+                                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-200/50 scale-105"
+                                  : "border-2 border-emerald-300/60 bg-white hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm text-slate-800"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        setPage((p) => Math.min(Math.ceil(total / limit), p + 1))
+                      }
+                      disabled={page >= Math.ceil(total / limit)}
+                      className="p-2.5 border-2 border-emerald-300/60 bg-white rounded-lg hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-emerald-300/60 transition-all duration-200 text-emerald-700 font-semibold"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

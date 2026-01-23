@@ -36,6 +36,9 @@ export interface PendingAppointment {
 export interface GetPendingAppointmentsResponse {
   success: boolean;
   appointments: PendingAppointment[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 export interface UpdateBookingProgressRequest {
@@ -50,14 +53,24 @@ export interface UpdateBookingProgressResponse {
 
 /**
  * Get all pending appointments for the current user
- * @param patientId - Optional patientId to filter pending appointments for a specific patient
+ * @param params - Optional params for pagination and filtering
  */
 export async function getPendingAppointments(
-  patientId?: string
+  params?: {
+    patientId?: string;
+    page?: number;
+    limit?: number;
+  }
 ): Promise<GetPendingAppointmentsResponse> {
   try {
-    const url = patientId
-      ? `appointments/pending?patientId=${patientId}`
+    const queryParams = new URLSearchParams();
+    if (params?.patientId) queryParams.set("patientId", params.patientId);
+    if (params?.page) queryParams.set("page", params.page.toString());
+    if (params?.limit) queryParams.set("limit", params.limit.toString());
+
+    const queryString = queryParams.toString();
+    const url = queryString
+      ? `appointments/pending?${queryString}`
       : "appointments/pending";
     const res = await api.get<GetPendingAppointmentsResponse>(url);
     return res.data;

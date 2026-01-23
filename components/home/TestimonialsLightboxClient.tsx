@@ -566,7 +566,7 @@ export default function TestimonialsLightboxClient({
                 {/* Close Button */}
                 <button
                   onClick={closeLightbox}
-                  className="absolute top-4 right-4 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md transition-colors text-white"
+                  className="absolute top-4 right-4 z-10 p-3 rounded-full bg-slate-900/90 hover:bg-slate-900 shadow-lg hover:shadow-xl transition-all duration-200 text-white border-2 border-white/20 backdrop-blur-sm"
                   aria-label="Close lightbox"
                 >
                   <X className="w-6 h-6" />
@@ -578,7 +578,7 @@ export default function TestimonialsLightboxClient({
                     e.stopPropagation();
                     goToPrevious();
                   }}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md transition-colors text-white"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-slate-900/90 hover:bg-slate-900 shadow-lg hover:shadow-xl transition-all duration-200 text-white border-2 border-white/20 backdrop-blur-sm"
                   aria-label="Previous testimonial"
                 >
                   <ChevronLeft className="w-6 h-6" />
@@ -590,7 +590,7 @@ export default function TestimonialsLightboxClient({
                     e.stopPropagation();
                     goToNext();
                   }}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md transition-colors text-white"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-slate-900/90 hover:bg-slate-900 shadow-lg hover:shadow-xl transition-all duration-200 text-white border-2 border-white/20 backdrop-blur-sm"
                   aria-label="Next testimonial"
                 >
                   <ChevronRight className="w-6 h-6" />

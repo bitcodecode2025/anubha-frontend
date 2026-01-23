@@ -100,6 +100,13 @@ export interface AppointmentDetails {
       };
     }>;
   }>;
+  // Files linked directly to the appointment (scoped per appointment)
+  files?: Array<{
+    id: string;
+    url: string;
+    fileName: string;
+    mimeType: string;
+  }>;
 }
 
 export interface GetAppointmentsResponse {
@@ -127,6 +134,7 @@ export async function getAdminAppointments(params: {
   mode?: string;
   date?: string;
   q?: string;
+  sort?: "latest" | "oldest";
 }): Promise<GetAppointmentsResponse> {
   try {
     const res = await api.get<GetAppointmentsResponse>("admin/appointments", {

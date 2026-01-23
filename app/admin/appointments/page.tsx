@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import {
   getAdminAppointments,
@@ -25,20 +25,39 @@ import {
   AlertCircle,
   FileText,
   Trash2,
+  Search,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 import SuccessNotification from "@/components/admin/SuccessNotification";
 import BabySolidPlanOptions from "@/components/appointments/BabySolidPlanOptions";
+import { formatDateIST, formatTimeIST } from "@/lib/date";
+
+const MIN_SEARCH_LENGTH = 2;
+const DEBOUNCE_DELAY = 400;
 
 export default function AdminAppointmentsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [page, setPage] = useState(1);
+  const [searching, setSearching] = useState(false);
+
+  // Initialize pagination & filters from URL (for sharable links / back-forward)
+  const initialPage = Number(searchParams.get("page") || "1");
+  const initialLimit = Number(searchParams.get("limit") || "20");
+  const initialStatus = searchParams.get("status") || "";
+  const initialMode = searchParams.get("mode") || "";
+  const initialQuery = searchParams.get("q") || "";
+  const initialSort = searchParams.get("sort") || "latest";
+
+  const [page, setPage] = useState(Math.max(1, initialPage));
   const [total, setTotal] = useState(0);
-  const [limit] = useState(20);
+  const [limit, setLimit] = useState(
+    Math.min(200, Math.max(1, initialLimit || 20))
+  );
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -48,8 +67,17 @@ export default function AdminAppointmentsPage() {
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
 
   // Filter states
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [modeFilter, setModeFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
+  const [modeFilter, setModeFilter] = useState<string>(initialMode);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [sortByDate, setSortByDate] = useState<"latest" | "oldest">(
+    initialSort === "oldest" ? "oldest" : "latest"
+  );
+
+  // Refs for cleanup and cancellation
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isInitialMount = useRef(true);
 
   // 🔒 ROUTE PROTECTION: Wait for auth, then check permissions
   useEffect(() => {
@@ -65,31 +93,225 @@ export default function AdminAppointmentsPage() {
     }
   }, [user, loading, router]);
 
+  // Helper to keep URL in sync with current filters & pagination
+  const syncUrlWithState = useCallback(
+    (overrides?: Partial<{ page: number; limit: number; status: string; mode: string; q: string; sort: string }>) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      const effectivePage = overrides?.page ?? page;
+      const effectiveLimit = overrides?.limit ?? limit;
+      const effectiveStatus = overrides?.status ?? statusFilter;
+      const effectiveMode = overrides?.mode ?? modeFilter;
+      const effectiveQuery = overrides?.q ?? searchQuery;
+      const effectiveSort = overrides?.sort ?? sortByDate;
+
+      params.set("page", String(effectivePage));
+      params.set("limit", String(effectiveLimit));
+
+      if (effectiveStatus) params.set("status", effectiveStatus);
+      else params.delete("status");
+
+      if (effectiveMode) params.set("mode", effectiveMode);
+      else params.delete("mode");
+
+      if (effectiveQuery && effectiveQuery.trim().length >= MIN_SEARCH_LENGTH) {
+        params.set("q", effectiveQuery.trim());
+      } else {
+        params.delete("q");
+      }
+
+      if (effectiveSort && effectiveSort !== "latest") {
+        params.set("sort", effectiveSort);
+      } else {
+        params.delete("sort");
+      }
+
+      const queryString = params.toString();
+      router.replace(
+        queryString ? `/admin/appointments?${queryString}` : "/admin/appointments",
+        { scroll: false }
+      );
+    },
+    [router, searchParams, page, limit, statusFilter, modeFilter, searchQuery, sortByDate]
+  );
+
+  // Fetch appointments with cancellation support
+  const fetchAppointments = useCallback(
+    async (search?: string) => {
+      // Cancel previous request if it exists
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // Create new AbortController for this request
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      // Set loading states at the start
+      setLoadingData(true);
+      if (search) {
+        setSearching(true);
+      }
+
+      try {
+        const params: any = { page, limit };
+        if (statusFilter) params.status = statusFilter;
+        if (modeFilter) params.mode = modeFilter;
+        if (sortByDate && sortByDate !== "latest") params.sort = sortByDate;
+        if (search && search.trim().length >= MIN_SEARCH_LENGTH) {
+          params.q = search.trim();
+        }
+
+        // Preserve any existing date filter from URL (if present)
+        const dateParam = searchParams.get("date");
+        if (dateParam) {
+          params.date = dateParam;
+        }
+
+        const response = await getAdminAppointments(params);
+
+        // Only update state if request wasn't cancelled
+        if (!abortController.signal.aborted) {
+          setAppointments(response.appointments);
+          setTotal(response.total);
+        }
+      } catch (error: any) {
+        // Ignore abort errors
+        if (error.name === "AbortError" || abortController.signal.aborted) {
+          // Reset loading state even if aborted to prevent stuck loader
+          setLoadingData(false);
+          setSearching(false);
+          return;
+        }
+        toast.error(
+          error?.response?.data?.message || "Failed to load appointments"
+        );
+      } finally {
+        // Always reset loading state, even if aborted
+        if (!abortController.signal.aborted) {
+          setLoadingData(false);
+          setSearching(false);
+        } else {
+          // If aborted, still reset loading state to prevent stuck loader
+          setLoadingData(false);
+          setSearching(false);
+        }
+      }
+    },
+    [page, limit, statusFilter, modeFilter, sortByDate, searchParams]
+  );
+
+  // Debounced search query state
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+  // Search with debounce and minimum length
+  useEffect(() => {
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    const trimmedQuery = searchQuery.trim();
+    const shouldSearch = trimmedQuery.length >= MIN_SEARCH_LENGTH;
+
+    // If query is too short, set empty debounced query
+    if (!shouldSearch && trimmedQuery.length === 0) {
+      setDebouncedSearchQuery("");
+      setSearching(false);
+      return;
+    }
+
+    // If query is too short but there's a query, show helper text only
+    if (!shouldSearch && trimmedQuery.length > 0) {
+      setSearching(false);
+      return;
+    }
+
+    // Don't set searching state here - let fetchAppointments handle it
+    // This prevents the loader from showing while user is still typing
+
+    // Debounce the search query update
+    timeoutRef.current = setTimeout(() => {
+      if (shouldSearch) {
+        setDebouncedSearchQuery(trimmedQuery);
+        // When search becomes active, reset to page 1 & sync URL
+        setPage(1);
+        syncUrlWithState({ page: 1, q: trimmedQuery });
+      } else {
+        setDebouncedSearchQuery("");
+        syncUrlWithState({ q: "" });
+      }
+    }, DEBOUNCE_DELAY);
+
+    // Cleanup function
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [searchQuery, syncUrlWithState]);
+
+  // Initial load and filter changes (including debounced search)
   useEffect(() => {
     // CRITICAL: Do NOT call APIs until user is authenticated
     if (!user || user.role !== "ADMIN") return;
 
-    fetchAppointments();
-  }, [page, statusFilter, modeFilter, user]);
-
-  async function fetchAppointments() {
-    setLoadingData(true);
-    try {
-      const params: any = { page, limit };
-      if (statusFilter) params.status = statusFilter;
-      if (modeFilter) params.mode = modeFilter;
-
-      const response = await getAdminAppointments(params);
-      setAppointments(response.appointments);
-      setTotal(response.total);
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message || "Failed to load appointments"
-      );
-    } finally {
-      setLoadingData(false);
+    // Reset to page 1 when filters change (except initial mount)
+    if (
+      !isInitialMount.current &&
+      (statusFilter || modeFilter || sortByDate !== "latest" || debouncedSearchQuery)
+    ) {
+      setPage(1);
     }
-  }
+
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+    }
+
+    // Use debounced search query
+    const searchToUse =
+      debouncedSearchQuery.trim().length >= MIN_SEARCH_LENGTH
+        ? debouncedSearchQuery.trim()
+        : undefined;
+
+    fetchAppointments(searchToUse);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOTE: fetchAppointments is intentionally NOT in the dependency array.
+    // It's a useCallback that depends on [page, limit, statusFilter, modeFilter],
+    // which are already in this effect's dependencies. Including fetchAppointments
+    // would cause the effect to run whenever the function reference changes,
+    // creating an infinite loop. The function is stable via useCallback.
+  }, [
+    page,
+    statusFilter,
+    modeFilter,
+    sortByDate,
+    debouncedSearchQuery,
+    user?.role,
+    user?.id,
+    // fetchAppointments removed to prevent infinite loop
+  ]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
+    setPage(1);
+    syncUrlWithState({ page: 1, q: "" });
+  };
 
   function handleViewDetails(appointmentId: string) {
     router.push(`/admin/appointments/${appointmentId}`);
@@ -106,11 +328,31 @@ export default function AdminAppointmentsPage() {
     }
 
     setUpdatingStatus(appointmentId);
+
+    // Optimistic update: update local state immediately
+    setAppointments((prev) =>
+      prev.map((appt) =>
+        appt.id === appointmentId ? { ...appt, status: newStatus } : appt
+      )
+    );
     try {
       await updateAppointmentStatus(appointmentId, newStatus);
       toast.success(`Appointment marked as ${newStatus.toLowerCase()}`);
-      fetchAppointments();
     } catch (error: any) {
+      // Revert optimistic update on error
+      setAppointments((prev) =>
+        prev.map((appt) =>
+          appt.id === appointmentId
+            ? {
+                ...appt,
+                status:
+                  appt.status === "CANCELLED" || appt.status === "COMPLETED"
+                    ? "CONFIRMED"
+                    : appt.status,
+              }
+            : appt
+        )
+      );
       toast.error(
         error?.response?.data?.error || "Failed to update appointment status"
       );
@@ -278,9 +520,9 @@ export default function AdminAppointmentsPage() {
               <div className="h-9 w-24 bg-slate-200 rounded-lg animate-pulse" />
             </div>
           </div>
-        </div>
-      </main>
-    );
+      </div>
+    </main>
+  );
   }
 
   return (
@@ -303,8 +545,42 @@ export default function AdminAppointmentsPage() {
           </p>
         </div>
 
+        {/* Search */}
+        <div className="mb-6">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by patient name, phone, or email (min 2 characters)..."
+              className="w-full pl-10 pr-10 py-3 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+              autoComplete="off"
+            />
+            {searching && (
+              <Loader2 className="absolute right-10 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-600 animate-spin pointer-events-none" />
+            )}
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+          {searchQuery.trim().length > 0 &&
+            searchQuery.trim().length < MIN_SEARCH_LENGTH && (
+              <p className="mt-2 text-sm text-slate-500">
+                Type at least {MIN_SEARCH_LENGTH} characters to search
+              </p>
+            )}
+        </div>
+
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex gap-4">
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex flex-col md:flex-row gap-4 items-stretch md:items-end">
           <div className="flex-1">
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Status
@@ -339,6 +615,46 @@ export default function AdminAppointmentsPage() {
               <option value="">All Modes</option>
               <option value="IN_PERSON">In-Person</option>
               <option value="ONLINE">Online</option>
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Sort by Date
+            </label>
+            <select
+              value={sortByDate}
+              onChange={(e) => {
+                setSortByDate(e.target.value as "latest" | "oldest");
+                setPage(1);
+              }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="latest">Latest First</option>
+              <option value="oldest">Oldest First</option>
+            </select>
+          </div>
+          {/* Page size selector */}
+          <div className="w-full md:w-48">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Page Size
+            </label>
+            <select
+              value={limit}
+              onChange={(e) => {
+                const newLimit = Math.min(
+                  200,
+                  Math.max(1, Number(e.target.value) || 20)
+                );
+                setLimit(newLimit);
+                setPage(1);
+                syncUrlWithState({ page: 1, limit: newLimit });
+              }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
             </select>
           </div>
         </div>
@@ -405,34 +721,12 @@ export default function AdminAppointmentsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-slate-500 mb-1">Slot Time</p>
                         <p className="text-sm font-medium text-slate-900">
-                          {new Date(appointment.startAt).toLocaleDateString(
-                            "en-IN",
-                            {
-                              weekday: "short",
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            }
-                          )}
+                          {formatDateIST(appointment.startAt, "EEE, dd MMM yyyy")}
                         </p>
                         <p className="text-sm text-slate-600">
-                          {new Date(appointment.startAt).toLocaleTimeString(
-                            "en-IN",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true,
-                            }
-                          )}{" "}
+                          {formatTimeIST(appointment.startAt, "hh:mm a")}{" "}
                           -{" "}
-                          {new Date(appointment.endAt).toLocaleTimeString(
-                            "en-IN",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true,
-                            }
-                          )}
+                          {formatTimeIST(appointment.endAt, "hh:mm a")}
                         </p>
                       </div>
                     </div>
@@ -445,24 +739,10 @@ export default function AdminAppointmentsPage() {
                           Booking Time
                         </p>
                         <p className="text-sm font-medium text-slate-900">
-                          {new Date(appointment.createdAt).toLocaleDateString(
-                            "en-IN",
-                            {
-                              weekday: "short",
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            }
-                          )}
+                          {formatDateIST(appointment.createdAt, "EEE, dd MMM yyyy")}
                         </p>
                         <p className="text-sm text-slate-600">
-                          {new Date(appointment.createdAt).toLocaleTimeString(
-                            "en-IN",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            }
-                          )}
+                          {formatTimeIST(appointment.createdAt, "hh:mm a")}
                         </p>
                       </div>
                     </div>
@@ -582,8 +862,8 @@ export default function AdminAppointmentsPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="bg-white rounded-lg shadow-sm p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-200">
-            <div className="text-sm text-slate-700">
+          <div className="bg-gradient-to-br from-emerald-50/80 to-white rounded-xl shadow-md shadow-emerald-100/50 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-emerald-200/60">
+            <div className="text-sm font-semibold text-slate-800">
               Showing {(page - 1) * limit + 1} to{" "}
               {Math.min(page * limit, total)} of {total} appointments
             </div>
@@ -591,18 +871,18 @@ export default function AdminAppointmentsPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
+                className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-white border-2 border-emerald-300/60 rounded-lg hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-emerald-300/60 flex items-center gap-1.5 transition-all duration-200"
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span className="hidden sm:inline">Previous</span>
               </button>
-              <span className="text-sm text-slate-700 px-2">
+              <span className="text-sm font-semibold text-slate-800 px-3 py-1.5 bg-white/60 rounded-lg border border-emerald-200/40">
                 Page {page} of {totalPages}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
+                className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-white border-2 border-emerald-300/60 rounded-lg hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-emerald-300/60 flex items-center gap-1.5 transition-all duration-200"
               >
                 <span className="hidden sm:inline">Next</span>
                 <ChevronRight className="w-4 h-4" />

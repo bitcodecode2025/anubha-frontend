@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Stethoscope,
   Calendar,
@@ -9,15 +9,22 @@ import {
   Loader2,
   FileText,
   ExternalLink,
+  Mail,
+  X,
+  Download,
 } from "lucide-react";
 import {
   DoctorNotesFormData,
   deleteDoctorNoteAttachment,
+  sendDoctorNotesEmail,
+  getDoctorNoteAttachmentViewUrl,
 } from "@/lib/doctor-notes-api";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 
 import { DoctorNoteAttachment } from "@/lib/doctor-notes-api";
+import FoodFrequencySection from "./sections/FoodFrequencySection";
+import { formatDateTimeIST } from "@/lib/date";
 
 interface DoctorNotesPreviewProps {
   formData: DoctorNotesFormData;
@@ -27,6 +34,8 @@ interface DoctorNotesPreviewProps {
   onEdit?: () => void;
   attachments?: DoctorNoteAttachment[];
   onAttachmentDeleted?: () => void; // Callback to refresh data after deletion
+  appointmentId?: string; // Appointment ID for sending emails
+  patientEmail?: string | null; // Patient email for email sending
 }
 
 // Helper function to format values
@@ -292,44 +301,19 @@ export default function DoctorNotesPreview({
   onEdit,
   attachments = [],
   onAttachmentDeleted,
+  appointmentId,
+  patientEmail,
 }: DoctorNotesPreviewProps) {
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailType, setEmailType] = useState<"patient" | "custom">("patient");
+  const [customEmail, setCustomEmail] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
   // Ensure attachments is always an array
   const apiAttachments = Array.isArray(attachments) ? attachments : [];
-  
-  // Extract uploadedPDFs from formData.dietPrescribed.uploadedPDFs
-  const formDataUploadedPDFs = (formData.dietPrescribed as any)?.uploadedPDFs || [];
-  
-  // Merge API attachments with formData uploadedPDFs
-  // Remove duplicates based on URL or ID
-  const allAttachments = [...apiAttachments];
-  formDataUploadedPDFs.forEach((formPdf: any) => {
-    const formPdfUrl = formPdf.url || formPdf.fileUrl;
-    const formPdfId = formPdf.id;
-    
-    // Check if this PDF already exists in API attachments
-    const exists = allAttachments.some(
-      (apiAtt) =>
-        apiAtt.fileUrl === formPdfUrl ||
-        apiAtt.id === formPdfId ||
-        (apiAtt.fileName === formPdf.fileName && apiAtt.sizeInBytes === formPdf.sizeInBytes)
-    );
-    
-    if (!exists && formPdfUrl) {
-      // Add formData PDF if it doesn't exist in API attachments
-      allAttachments.push({
-        id: formPdfId || `formdata-${allAttachments.length}`,
-        fileName: formPdf.fileName || formPdf.name || `PDF ${allAttachments.length + 1}`,
-        fileUrl: formPdfUrl,
-        mimeType: formPdf.mimeType || "application/pdf",
-        sizeInBytes: formPdf.sizeInBytes || formPdf.size || 0,
-        fileCategory: "DIET_CHART",
-        section: "DietPrescribed",
-        createdAt: formPdf.createdAt || new Date().toISOString(),
-      });
-    }
-  });
-  
-  const safeAttachments = allAttachments;
+  // IMPORTANT:
+  // Section 7 (Diet Prescribed PDFs) is now R2-only.
+  // We intentionally do NOT merge/preview any legacy Cloudinary URLs from formData.
+  const safeAttachments = apiAttachments;
 
   return (
     <motion.div
@@ -375,13 +359,7 @@ export default function DoctorNotesPreview({
               <Calendar className="w-4 h-4" />
               <span>
                 Created:{" "}
-                {new Date(createdAt).toLocaleString("en-IN", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {formatDateTimeIST(createdAt, "dd MMMM yyyy, hh:mm a")}
               </span>
             </div>
           )}
@@ -390,13 +368,7 @@ export default function DoctorNotesPreview({
               <Calendar className="w-4 h-4" />
               <span>
                 Updated:{" "}
-                {new Date(updatedAt).toLocaleString("en-IN", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {formatDateTimeIST(updatedAt, "dd MMMM yyyy, hh:mm a")}
               </span>
             </div>
           )}
@@ -1538,628 +1510,8 @@ export default function DoctorNotesPreview({
             </SectionWrapper>
           )}
 
-        {/* Section 5: Food Frequency - Complex nested structure */}
-        {formData.foodFrequency &&
-          Object.keys(formData.foodFrequency).length > 0 && (
-            <div className="mb-6 pb-6 border-b border-slate-200">
-              <h4 className="text-lg font-semibold text-emerald-700 mb-4">
-                Section 5 — Food Frequency
-              </h4>
-              <div className="space-y-4">
-                {/* Non-Veg */}
-                {formData.foodFrequency.nonVeg &&
-                  (Array.isArray(formData.foodFrequency.nonVeg)
-                    ? formData.foodFrequency.nonVeg.length > 0
-                    : Object.keys(formData.foodFrequency.nonVeg).length >
-                      0) && (
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
-                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
-                        Non-Veg
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {Array.isArray(formData.foodFrequency.nonVeg)
-                          ? // Handle as array
-                            formData.foodFrequency.nonVeg
-                              .filter((item: any) => item?.checked)
-                              .map((item: any, idx: number) => (
-                                <div key={idx} className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {item.name}
-                                  </div>
-                                  {item.qtyPieces && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {item.qtyPieces} pieces
-                                    </div>
-                                  )}
-                                  {item.prepType && (
-                                    <div className="text-sm text-slate-600">
-                                      Prep: {item.prepType}
-                                    </div>
-                                  )}
-                                  {item.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {item.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                          : // Handle as object (legacy format)
-                            Object.entries(formData.foodFrequency.nonVeg).map(
-                              ([key, item]: [string, any]) => {
-                                if (!item?.checked) return null;
-                                return (
-                                  <div
-                                    key={key}
-                                    className="bg-white rounded p-3"
-                                  >
-                                    <div className="font-medium text-slate-900 mb-1">
-                                      {key.charAt(0).toUpperCase() +
-                                        key.slice(1)}
-                                    </div>
-                                    {item.qtyPieces && (
-                                      <div className="text-sm text-slate-600">
-                                        Qty: {item.qtyPieces} pieces
-                                      </div>
-                                    )}
-                                    {item.prepType && (
-                                      <div className="text-sm text-slate-600">
-                                        Prep: {item.prepType}
-                                      </div>
-                                    )}
-                                    {item.frequency && (
-                                      <div className="text-sm text-slate-600">
-                                        Frequency: {item.frequency}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }
-                            )}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Dairy */}
-                {formData.foodFrequency.dairy &&
-                  Object.keys(formData.foodFrequency.dairy).length > 0 && (
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
-                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
-                        Dairy
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {(() => {
-                          const milk = formData.foodFrequency.dairy.milk as any;
-                          if (milk === undefined) return null;
-                          return (
-                            <div className="bg-white rounded p-2">
-                              <div className="font-medium text-slate-900">
-                                Milk: {milk?.checked ? "Yes" : "No"}
-                              </div>
-                              {milk?.checked && milk.glasses && (
-                                <div className="text-sm text-slate-600">
-                                  Quantity: {milk.glasses} glasses
-                                </div>
-                              )}
-                              {milk?.checked && milk.frequency && (
-                                <div className="text-sm text-slate-600">
-                                  Frequency: {milk.frequency}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                        {formData.foodFrequency.dairy.curdButtermilk && (
-                          <FieldDisplay
-                            label="Curd / Buttermilk"
-                            value={formData.foodFrequency.dairy.curdButtermilk}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Packaged Items */}
-                {formData.foodFrequency.packaged &&
-                  (Array.isArray(formData.foodFrequency.packaged)
-                    ? formData.foodFrequency.packaged.length > 0
-                    : Object.keys(formData.foodFrequency.packaged).length >
-                      0) && (
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
-                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
-                        Packaged / Daily Items
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {Array.isArray(formData.foodFrequency.packaged)
-                          ? // Handle as array (legacy format)
-                            formData.foodFrequency.packaged
-                              .filter((item: any) => item.checked)
-                              .map((item: any, idx: number) => (
-                                <div key={idx} className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {item.name}
-                                  </div>
-                                  {item.quantity && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {item.quantity}
-                                    </div>
-                                  )}
-                                  {item.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {item.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                          : // Handle as object (current format)
-                            [
-                              "Noodles",
-                              "Butter/Cream/Ghee",
-                              "Ghee Chapati",
-                              "Cheese",
-                              "Ice Cream",
-                              "Milkshake",
-                              "Chocolate",
-                              "Fried Foods",
-                              "Pickle/Papad",
-                              "Lemon Sweets",
-                              "Biscuits",
-                              "Sweets/Desserts",
-                              "Jam/Sauces",
-                              "Instant Foods",
-                              "Soft Drinks",
-                            ].map((itemName) => {
-                              const key = itemName
-                                .toLowerCase()
-                                .replace(/[\/ ]/g, "");
-                              const item = (
-                                formData.foodFrequency?.packaged as any
-                              )?.[key];
-                              const isChecked = item?.checked === true;
-                              return (
-                                <div key={key} className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {itemName}: {isChecked ? "Yes" : "No"}
-                                  </div>
-                                  {isChecked && item.quantity && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {item.quantity}
-                                    </div>
-                                  )}
-                                  {isChecked && item.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {item.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Sweeteners */}
-                {formData.foodFrequency.sweeteners &&
-                  (Array.isArray(formData.foodFrequency.sweeteners)
-                    ? formData.foodFrequency.sweeteners.length > 0
-                    : Object.keys(formData.foodFrequency.sweeteners).length >
-                      0) && (
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
-                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
-                        Sweeteners
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {Array.isArray(formData.foodFrequency.sweeteners)
-                          ? // Handle as array (legacy format)
-                            formData.foodFrequency.sweeteners
-                              .filter((item: any) => item.checked)
-                              .map((item: any, idx: number) => (
-                                <div key={idx} className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {item.name}
-                                  </div>
-                                  {item.qty && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {item.qty} TSP/TBSP
-                                    </div>
-                                  )}
-                                  {item.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {item.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                          : // Handle as object (current format)
-                            ["Sugar", "Honey", "Jaggery"].map((itemName) => {
-                              const key = itemName.toLowerCase();
-                              const item = (
-                                formData.foodFrequency?.sweeteners as any
-                              )?.[key];
-                              const isChecked = item?.checked === true;
-                              return (
-                                <div key={key} className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {itemName}: {isChecked ? "Yes" : "No"}
-                                  </div>
-                                  {isChecked && item.qty && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {item.qty} TSP/TBSP
-                                    </div>
-                                  )}
-                                  {isChecked && item.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {item.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Drinks */}
-                {formData.foodFrequency.drinks &&
-                  (Array.isArray(formData.foodFrequency.drinks)
-                    ? formData.foodFrequency.drinks.length > 0
-                    : Object.keys(formData.foodFrequency.drinks).length >
-                      0) && (
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
-                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
-                        Drinks
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {Array.isArray(formData.foodFrequency.drinks)
-                          ? // Handle as array (legacy format)
-                            formData.foodFrequency.drinks
-                              .filter((item: any) => item.checked)
-                              .map((item: any, idx: number) => (
-                                <div key={idx} className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {item.name}
-                                  </div>
-                                  {item.qty && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {item.qty} cups/pieces
-                                    </div>
-                                  )}
-                                  {item.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {item.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                          : // Handle as object (current format)
-                            ["Tea", "Coffee"].map((itemName) => {
-                              const key = itemName.toLowerCase();
-                              const item = (
-                                formData.foodFrequency?.drinks as any
-                              )?.[key];
-                              const isChecked = item?.checked === true;
-                              return (
-                                <div key={key} className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {itemName}: {isChecked ? "Yes" : "No"}
-                                  </div>
-                                  {isChecked && item.qty && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {item.qty} cups/pieces
-                                    </div>
-                                  )}
-                                  {isChecked && item.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {item.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Lifestyle */}
-                {formData.foodFrequency.lifestyle &&
-                  (Array.isArray(formData.foodFrequency.lifestyle)
-                    ? formData.foodFrequency.lifestyle.length > 0
-                    : Object.keys(formData.foodFrequency.lifestyle).length >
-                      0) && (
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
-                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
-                        Lifestyle
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {Array.isArray(formData.foodFrequency.lifestyle) ? (
-                          // Handle as array
-                          formData.foodFrequency.lifestyle
-                            .filter((item: any) => item?.checked)
-                            .map((item: any, idx: number) => (
-                              <div key={idx} className="bg-white rounded p-3">
-                                <div className="font-medium text-slate-900 mb-1">
-                                  {item.name}: Yes
-                                </div>
-                                {item.qty && (
-                                  <div className="text-sm text-slate-600">
-                                    Qty: {item.qty}
-                                  </div>
-                                )}
-                                {item.frequency && (
-                                  <div className="text-sm text-slate-600">
-                                    Frequency: {item.frequency}
-                                  </div>
-                                )}
-                              </div>
-                            ))
-                        ) : (
-                          // Handle as object (current format)
-                          <>
-                            {["Smoking", "Tobacco"].map((itemName) => {
-                              const key = itemName.toLowerCase();
-                              const item = (
-                                formData.foodFrequency?.lifestyle as any
-                              )?.[key];
-                              const isChecked = item?.checked === true;
-                              return (
-                                <div key={key} className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {itemName}: {isChecked ? "Yes" : "No"}
-                                  </div>
-                                  {isChecked && item.qty && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {item.qty} cups/pieces
-                                    </div>
-                                  )}
-                                  {isChecked && item.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {item.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {(() => {
-                              const alcohol = (
-                                formData.foodFrequency.lifestyle as any
-                              ).alcohol;
-                              const isChecked = alcohol?.checked === true;
-                              return (
-                                <div className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    Alcohol: {isChecked ? "Yes" : "No"}
-                                  </div>
-                                  {isChecked && alcohol.qty && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {alcohol.qty} ml
-                                    </div>
-                                  )}
-                                  {isChecked && alcohol.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {alcohol.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Water */}
-                {formData.foodFrequency.water !== undefined && (
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <h5 className="font-semibold text-slate-700 mb-3">Water</h5>
-                    <div className="bg-white rounded p-3">
-                      <div className="font-medium text-slate-900 mb-1">
-                        Water:{" "}
-                        {formData.foodFrequency.water?.checked ? "Yes" : "No"}
-                      </div>
-                      {formData.foodFrequency.water?.checked &&
-                        formData.foodFrequency.water.qty && (
-                          <div className="text-sm text-slate-600">
-                            Qty: {formData.foodFrequency.water.qty} cups/pieces
-                          </div>
-                        )}
-                      {formData.foodFrequency.water?.checked &&
-                        formData.foodFrequency.water.frequency && (
-                          <div className="text-sm text-slate-600">
-                            Frequency: {formData.foodFrequency.water.frequency}
-                          </div>
-                        )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Healthy Foods */}
-                {formData.foodFrequency.healthyFoods &&
-                  (Array.isArray(formData.foodFrequency.healthyFoods)
-                    ? formData.foodFrequency.healthyFoods.length > 0
-                    : Object.keys(formData.foodFrequency.healthyFoods).length >
-                      0) && (
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
-                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
-                        Healthy Foods
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                        {Array.isArray(formData.foodFrequency.healthyFoods)
-                          ? // Handle as array (legacy format)
-                            formData.foodFrequency.healthyFoods
-                              .filter((item: any) => item.checked)
-                              .map((item: any, idx: number) => (
-                                <div key={idx} className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {item.name}
-                                  </div>
-                                  {item.qty && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {item.qty} cups/pieces
-                                    </div>
-                                  )}
-                                  {item.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {item.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                          : // Handle as object (current format)
-                            [
-                              "Leafy Veg (Bowls)",
-                              "Fresh Fruits",
-                              "Dry Fruits & Nuts",
-                              "Veg Salad",
-                            ].map((itemName) => {
-                              const key = itemName
-                                .toLowerCase()
-                                .replace(/[ &]/g, "");
-                              const item = (
-                                formData.foodFrequency?.healthyFoods as any
-                              )?.[key];
-                              const isChecked = item?.checked === true;
-                              return (
-                                <div key={key} className="bg-white rounded p-3">
-                                  <div className="font-medium text-slate-900 mb-1">
-                                    {itemName}: {isChecked ? "Yes" : "No"}
-                                  </div>
-                                  {isChecked && item.qty && (
-                                    <div className="text-sm text-slate-600">
-                                      Qty: {item.qty} cups/pieces
-                                    </div>
-                                  )}
-                                  {isChecked && item.frequency && (
-                                    <div className="text-sm text-slate-600">
-                                      Frequency: {item.frequency}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Eating Out */}
-                {formData.foodFrequency.eatingOut !== undefined && (
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <h5 className="font-semibold text-slate-700 mb-3">
-                      Eating Out
-                    </h5>
-                    <div className="bg-white rounded p-3">
-                      <div className="font-medium text-slate-900 mb-1">
-                        Eating Out:{" "}
-                        {formData.foodFrequency.eatingOut?.checked
-                          ? "Yes"
-                          : "No"}
-                      </div>
-                      {formData.foodFrequency.eatingOut?.checked &&
-                        formData.foodFrequency.eatingOut.frequency && (
-                          <div className="text-sm text-slate-600 mb-2">
-                            Frequency:{" "}
-                            {formData.foodFrequency.eatingOut.frequency}
-                          </div>
-                        )}
-                      {formData.foodFrequency.eatingOut?.checked &&
-                        formData.foodFrequency.eatingOut.foodItems && (
-                          <div className="text-sm text-slate-600">
-                            Food Items:{" "}
-                            {formData.foodFrequency.eatingOut.foodItems}
-                          </div>
-                        )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Coconut */}
-                {formData.foodFrequency.coconut !== undefined && (
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <h5 className="font-semibold text-slate-700 mb-3">
-                      Coconut
-                    </h5>
-                    <div className="bg-white rounded p-3">
-                      <div className="font-medium text-slate-900 mb-1">
-                        Coconut:{" "}
-                        {formData.foodFrequency.coconut?.checked ? "Yes" : "No"}
-                      </div>
-                      {formData.foodFrequency.coconut?.checked &&
-                        formData.foodFrequency.coconut.frequency && (
-                          <div className="text-sm text-slate-600">
-                            Frequency:{" "}
-                            {formData.foodFrequency.coconut.frequency}
-                          </div>
-                        )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Pizza/Burger */}
-                {formData.foodFrequency.pizzaBurger !== undefined && (
-                  <div className="bg-slate-50 rounded-lg p-4">
-                    <h5 className="font-semibold text-slate-700 mb-3">
-                      Pizza/Burger
-                    </h5>
-                    <div className="bg-white rounded p-3">
-                      <div className="font-medium text-slate-900 mb-1">
-                        Pizza/Burger:{" "}
-                        {formData.foodFrequency.pizzaBurger?.checked
-                          ? "Yes"
-                          : "No"}
-                      </div>
-                      {formData.foodFrequency.pizzaBurger?.checked &&
-                        formData.foodFrequency.pizzaBurger.qty && (
-                          <div className="text-sm text-slate-600 mb-2">
-                            Qty: {formData.foodFrequency.pizzaBurger.qty}{" "}
-                            cups/pieces
-                          </div>
-                        )}
-                      {formData.foodFrequency.pizzaBurger?.checked &&
-                        formData.foodFrequency.pizzaBurger.frequency && (
-                          <div className="text-sm text-slate-600">
-                            Frequency:{" "}
-                            {formData.foodFrequency.pizzaBurger.frequency}
-                          </div>
-                        )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Oil / Fat */}
-                {formData.foodFrequency.oilFat &&
-                  Object.keys(formData.foodFrequency.oilFat).length > 0 && (
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border border-slate-200 shadow-sm mb-4">
-                      <h5 className="font-bold text-slate-800 mb-4 text-lg border-b-2 border-slate-300 pb-2">
-                        Oil / Fat
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <FieldDisplay
-                          label="Type of Oil"
-                          value={formData.foodFrequency.oilFat.typeOfOil}
-                        />
-                        <FieldDisplay
-                          label="Oil Per Month"
-                          value={formData.foodFrequency.oilFat.oilPerMonth}
-                        />
-                        <div className="md:col-span-2">
-                          <FieldDisplay
-                            label="Total Members in House"
-                            value={
-                              formData.foodFrequency.oilFat.totalMembersInHouse
-                            }
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <FieldDisplay
-                            label="Reuse Fried Oil in Cooking?"
-                            value={formData.foodFrequency.oilFat.reuseFriedOil}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-              </div>
-            </div>
-          )}
+        {/* Section 5: Food Frequency */}
+        <FoodFrequencySection foodFrequency={formData.foodFrequency} />
 
         {/* Section 6: Health Profile - Handle conditions properly */}
         {formData.healthProfile &&
@@ -2368,6 +1720,63 @@ export default function DoctorNotesPreview({
                       </div>
                     </div>
                   )}
+
+                {/* Medical Reports - Subsection of Section 6 */}
+                {(() => {
+                  // Filter medical reports: prioritize filePath pattern (most reliable)
+                  // If filePath includes "/reports/", it's a medical report
+                  const medicalReports = safeAttachments.filter((att) => {
+                    // PRIMARY: Check filePath pattern (most reliable indicator)
+                    const isReportPath = att.filePath?.includes("/reports/");
+                    
+                    // SECONDARY: Check fileCategory and section (may be null/undefined for older records)
+                    const hasReportCategory = 
+                      att.fileCategory === "LAB_REPORT" || 
+                      att.fileCategory === "OTHER";
+                    const hasHealthProfileSection = att.section === "HealthProfile";
+                    
+                    // Include if filePath matches OR (fileCategory matches AND section matches)
+                    return isReportPath || (hasReportCategory && hasHealthProfileSection);
+                  });
+
+                  // Debug logging to help diagnose issues
+                  if (process.env.NODE_ENV === "development") {
+                    const reportsPath = safeAttachments.filter(att => att.filePath?.includes("/reports/"));
+                    if (reportsPath.length > 0) {
+                      console.log("[PREVIEW] Medical reports found:", {
+                        totalWithReportsPath: reportsPath.length,
+                        filteredCount: medicalReports.length,
+                        reports: reportsPath.map(r => ({
+                          id: r.id,
+                          fileName: r.fileName,
+                          filePath: r.filePath,
+                          fileCategory: r.fileCategory,
+                          section: r.section,
+                          provider: (r as any).provider
+                        }))
+                      });
+                    }
+                  }
+
+                  if (medicalReports.length === 0) return null;
+
+                  return (
+                    <div className="md:col-span-2 mt-6 pt-6 border-t-2 border-emerald-200">
+                      <h5 className="text-lg font-bold text-emerald-700 mb-4">
+                        Medical Reports
+                      </h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        {medicalReports.map((report, index) => (
+                          <MedicalReportCard
+                            key={report.id || index}
+                            attachment={report}
+                            onAttachmentDeleted={onAttachmentDeleted}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -2398,13 +1807,11 @@ export default function DoctorNotesPreview({
               />
               <FieldDisplay label="Code" value={formData.dietPrescribed.code} />
 
-              {/* Uploaded PDFs */}
-              {(safeAttachments.length > 0 ||
-                (formData.dietPrescribed as any)?.uploadedPDFs?.length > 0 ||
-                (formData.dietPrescribed as any)?.dietChartUrl) && (
+              {/* Uploaded PDFs (R2-only) */}
+              {safeAttachments.length > 0 && (
                 <div className="md:col-span-2 mt-4">
                   <div className="bg-white border-2 border-emerald-200 rounded-lg p-4 shadow-sm">
-                    {/* Show all attachments from API, fallback to formData for backward compatibility */}
+                    {/* R2-only Diet PDFs (no Cloudinary fallback) */}
                     {(() => {
                       const dietChartAttachments = safeAttachments.filter(
                         (att) =>
@@ -2412,42 +1819,28 @@ export default function DoctorNotesPreview({
                           att.fileCategory === "DIET_CHART"
                       );
 
-                      // Fallback to single file from formData for backward compatibility
-                      // Note: These fields may not exist in the TypeScript interface but could be in the data
-                      const dietPrescribedData = formData.dietPrescribed as any;
-                      const legacyPdfUrl = dietPrescribedData?.dietChartUrl;
-                      const legacyFileName =
-                        dietPrescribedData?.dietChartFileName;
-                      const legacyFileSize =
-                        dietPrescribedData?.dietChartFileSize;
+                      // R2-only: show Diet Prescribed PDFs that are stored in R2.
+                      // Prefer explicit section/fileCategory, but also allow the filePath pattern for resiliency.
+                      const attachmentsToShow = (
+                        dietChartAttachments.length > 0
+                          ? dietChartAttachments
+                          : safeAttachments
+                      ).filter((att) => {
+                        const isR2 = att.provider === "S3";
+                        if (!isR2) return false; // no Cloudinary in section 7
 
-                      // If no filtered attachments found, show all attachments as fallback
-                      // This ensures PDFs are visible even if section/fileCategory don't match exactly
-                      const attachmentsToShow = dietChartAttachments.length > 0 
-                        ? dietChartAttachments 
-                        : safeAttachments.filter(att => att.mimeType === "application/pdf");
-                      
-                      // If still no attachments found, check for legacy single file
-                      if (attachmentsToShow.length === 0 && !legacyPdfUrl) {
+                        const isPdfByMime = att.mimeType === "application/pdf";
+                        const isPdfByPath = att.filePath?.includes("/pdf/");
+                        return isPdfByMime && isPdfByPath;
+                      });
+
+                      if (attachmentsToShow.length === 0) {
                         return (
                           <p className="text-sm text-slate-500 italic">
                             No PDF files uploaded
                           </p>
                         );
                       }
-
-                      const formatFileSize = (bytes?: number) => {
-                        if (!bytes) return "";
-                        if (bytes === 0) return "0 Bytes";
-                        const k = 1024;
-                        const sizes = ["Bytes", "KB", "MB"];
-                        const i = Math.floor(Math.log(bytes) / Math.log(k));
-                        return (
-                          Math.round((bytes / Math.pow(k, i)) * 100) / 100 +
-                          " " +
-                          sizes[i]
-                        );
-                      };
 
                       return (
                         <div className="space-y-2">
@@ -2458,128 +1851,33 @@ export default function DoctorNotesPreview({
                           {attachmentsToShow.length > 0 && (
                             <>
                               <p className="text-xs text-slate-500 mb-3">
-                                Click on any PDF to open it in a new tab
+                                Use View / Download (secure R2 access)
                               </p>
                               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                 {attachmentsToShow.map((pdf, index) => (
-                                  <a
+                                  <DietPdfCard
                                     key={pdf.id || index}
-                                    href={pdf.fileUrl || "#"}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="relative group rounded-xl border-2 border-emerald-200 bg-white hover:bg-emerald-50 p-5 transition-all cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-1"
-                                  >
-                                    <div className="flex flex-col items-center text-center">
-                                      {/* PDF Icon - Large */}
-                                      <div className="mb-4">
-                                        <svg
-                                          width="64"
-                                          height="64"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          xmlns="http://www.w3.org/2000/svg"
-                                        >
-                                          <path
-                                            d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"
-                                            fill="#10b981"
-                                            stroke="#10b981"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          />
-                                          <path
-                                            d="M14 2V8H20"
-                                            fill="#fff"
-                                            stroke="#10b981"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          />
-                                          <text
-                                            x="12"
-                                            y="16"
-                                            fontSize="5"
-                                            fontWeight="bold"
-                                            fill="#fff"
-                                            textAnchor="middle"
-                                          >
-                                            PDF
-                                          </text>
-                                        </svg>
-                                      </div>
-
-                                      {/* File Info */}
-                                      <h3 className="text-base font-semibold text-emerald-700 group-hover:text-emerald-800 mb-1">
-                                        PDF #{index + 1}
-                                      </h3>
-                                      <p
-                                        className="text-sm text-slate-700 truncate w-full mb-1"
-                                        title={pdf.fileName}
-                                      >
-                                        {pdf.fileName}
-                                      </p>
-                                      {pdf.sizeInBytes && (
-                                        <p className="text-xs text-slate-500">
-                                          {formatFileSize(pdf.sizeInBytes)}
-                                        </p>
-                                      )}
-                                      <p className="text-xs text-emerald-600 font-medium mt-2">
-                                        Click to open
-                                      </p>
-                                    </div>
-                                  </a>
+                                    attachment={pdf}
+                                  />
                                 ))}
                               </div>
                             </>
                           )}
 
-                          {/* Legacy single file fallback */}
-                          {attachmentsToShow.length === 0 &&
-                            legacyPdfUrl && (
-                              <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors">
-                                <a
-                                  href={legacyPdfUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-3 flex-1 min-w-0 group"
+                          {/* Send Email Button */}
+                          {appointmentId &&
+                            attachmentsToShow.length > 0 &&
+                            safeAttachments.filter(
+                              (att) => att.mimeType === "application/pdf"
+                            ).length > 0 && (
+                              <div className="mt-4 pt-4 border-t border-emerald-200">
+                                <button
+                                  onClick={() => setShowEmailModal(true)}
+                                  className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center gap-2"
                                 >
-                                  <svg
-                                    className="w-5 h-5 text-emerald-600 flex-shrink-0"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                                    />
-                                  </svg>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-emerald-700 group-hover:text-emerald-800 truncate">
-                                      {legacyFileName || "View Diet Chart PDF"}
-                                    </p>
-                                    {legacyFileSize && (
-                                      <p className="text-xs text-slate-500">
-                                        {formatFileSize(legacyFileSize)}
-                                      </p>
-                                    )}
-                                  </div>
-                                </a>
-                                <svg
-                                  className="w-4 h-4 text-emerald-600 flex-shrink-0 ml-2"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                                  />
-                                </svg>
+                                  <Mail className="w-5 h-5" />
+                                  <span>Send PDFs via Email</span>
+                                </button>
                               </div>
                             )}
                         </div>
@@ -2679,9 +1977,147 @@ export default function DoctorNotesPreview({
                   value={formData.bodyMeasurements.ankle}
                   unit="cm"
                 />
+
+                {/* Body Composition */}
+                <FieldDisplay
+                  label="Body Weight"
+                  value={(formData.bodyMeasurements as any).bodyWeight}
+                  unit="kg"
+                />
+                <FieldDisplay
+                  label="BMI"
+                  value={(formData.bodyMeasurements as any).bmi}
+                />
+                <FieldDisplay
+                  label="Body Fat Ratio"
+                  value={(formData.bodyMeasurements as any).bodyFatRatio}
+                  unit="%"
+                />
+                <FieldDisplay
+                  label="Body Water"
+                  value={(formData.bodyMeasurements as any).bodyWater}
+                  unit="%"
+                />
+                <FieldDisplay
+                  label="Bone Mass"
+                  value={(formData.bodyMeasurements as any).boneMass}
+                  unit="kg"
+                />
+                <FieldDisplay
+                  label="BMR"
+                  value={(formData.bodyMeasurements as any).bmr}
+                  unit="kcal/day"
+                />
+                <FieldDisplay
+                  label="Metabolic Age"
+                  value={(formData.bodyMeasurements as any).metabolicAge}
+                  unit="years"
+                />
+                <FieldDisplay
+                  label="Visceral Fat"
+                  value={(formData.bodyMeasurements as any).visceralFat}
+                />
+                <FieldDisplay
+                  label="Subcutaneous Fat"
+                  value={(formData.bodyMeasurements as any).subcutaneousFat}
+                  unit="%"
+                />
+                <FieldDisplay
+                  label="Protein Mass"
+                  value={(formData.bodyMeasurements as any).proteinMass}
+                  unit="kg"
+                />
+                <FieldDisplay
+                  label="Muscle Mass"
+                  value={(formData.bodyMeasurements as any).muscleMass}
+                  unit="kg"
+                />
+                <FieldDisplay
+                  label="Weight Without Fat"
+                  value={(formData.bodyMeasurements as any).weightWithoutFat}
+                  unit="kg"
+                />
+                <FieldDisplay
+                  label="Obesity Level"
+                  value={(formData.bodyMeasurements as any).obesityLevel}
+                  unit="%"
+                />
               </div>
             </div>
           )}
+
+        {/* Section 9: Pre & Post Consultation Images */}
+        {(() => {
+          const prePostImages = safeAttachments.filter(
+            (att) =>
+              att.fileCategory === "IMAGE" &&
+              att.section === "PrePostConsultation" &&
+              (att.filePath?.includes("/pre/") ||
+                att.filePath?.includes("/post/"))
+          );
+
+          if (prePostImages.length === 0) return null;
+
+          const preImages = prePostImages.filter((att) =>
+            att.filePath?.includes("/pre/")
+          );
+          const postImages = prePostImages.filter((att) =>
+            att.filePath?.includes("/post/")
+          );
+
+          return (
+            <div className="mb-6 pb-6 border-b border-slate-200 last:border-b-0">
+              <h4 className="text-lg font-semibold text-emerald-700 mb-4">
+                Section 9 — Pre & Post Consultation Images
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Pre-Consultation Images */}
+                <div>
+                  <h5 className="text-md font-semibold text-slate-700 mb-3">
+                    Pre-Consultation Images (Before)
+                  </h5>
+                  {preImages.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {preImages.map((image, index) => (
+                        <PrePostImageCard
+                          key={image.id || index}
+                          attachment={image}
+                          onAttachmentDeleted={onAttachmentDeleted}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">
+                      No pre-consultation images
+                    </p>
+                  )}
+                </div>
+
+                {/* Post-Consultation Images */}
+                  <div>
+                  <h5 className="text-md font-semibold text-slate-700 mb-3">
+                    Post-Consultation Images (After)
+                  </h5>
+                  {postImages.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {postImages.map((image, index) => (
+                        <PrePostImageCard
+                          key={image.id || index}
+                          attachment={image}
+                          onAttachmentDeleted={onAttachmentDeleted}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">
+                      No post-consultation images
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* General Notes */}
         {formData.notes && (
@@ -2697,6 +2133,654 @@ export default function DoctorNotesPreview({
           </div>
         )}
       </div>
+
+      {/* Send Email Modal */}
+      <AnimatePresence>
+        {showEmailModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            // Darken the background slightly, but blur the page behind (not a solid black screen)
+            className="fixed inset-0 bg-black/30 backdrop-blur-md flex items-center justify-center p-4 z-[1000]"
+            onClick={() => !sendingEmail && setShowEmailModal(false)}
+          >
+            <motion.div
+              initial={{ y: -50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -50, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-slate-900">
+                  Send PDFs via Email
+                </h3>
+                <button
+                  onClick={() => setShowEmailModal(false)}
+                  disabled={sendingEmail}
+                  className="text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Send to
+                  </label>
+                  <select
+                    value={emailType}
+                    onChange={(e) =>
+                      setEmailType(e.target.value as "patient" | "custom")
+                    }
+                    disabled={sendingEmail}
+                    className="w-full px-4 py-3 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
+                  >
+                    {patientEmail ? (
+                      <option value="patient">
+                        Patient Email ({patientEmail})
+                      </option>
+                    ) : (
+                      <option value="patient" disabled>
+                        Patient Email (Not Available)
+                      </option>
+                    )}
+                    <option value="custom">Custom Email</option>
+                  </select>
+                </div>
+
+                {emailType === "custom" && (
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={customEmail}
+                      onChange={(e) => setCustomEmail(e.target.value)}
+                      placeholder="Enter email address"
+                      disabled={sendingEmail}
+                      className="w-full px-4 py-3 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
+                    />
+                  </div>
+                )}
+
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <p className="text-sm text-emerald-800">
+                    <strong>
+                      {
+                        safeAttachments.filter(
+                          (att) => att.mimeType === "application/pdf"
+                        ).length
+                      }
+                    </strong>{" "}
+                    PDF file(s) will be sent via email.
+                  </p>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailModal(false)}
+                    disabled={sendingEmail}
+                    className="flex-1 px-6 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!appointmentId) return;
+
+                      if (
+                        emailType === "custom" &&
+                        (!customEmail || !customEmail.trim())
+                      ) {
+                        toast.error("Please enter an email address");
+                        return;
+                      }
+
+                      setSendingEmail(true);
+                      try {
+                        const result = await sendDoctorNotesEmail(
+                          appointmentId,
+                          {
+                            usePatientEmail: emailType === "patient",
+                            customEmail:
+                              emailType === "custom" ? customEmail : undefined,
+                          }
+                        );
+
+                        if (result.success) {
+                          toast.success(
+                            result.message || "Email sent successfully!"
+                          );
+                          setShowEmailModal(false);
+                          setCustomEmail("");
+                          setEmailType("patient");
+                        } else {
+                          throw new Error(
+                            result.error || "Failed to send email"
+                          );
+                        }
+                      } catch (error: any) {
+                        toast.error(
+                          error?.response?.data?.error ||
+                            error?.message ||
+                            "Failed to send email. Please try again."
+                        );
+                      } finally {
+                        setSendingEmail(false);
+                      }
+                    }}
+                    disabled={
+                      sendingEmail ||
+                      (emailType === "custom" && !customEmail.trim()) ||
+                      (emailType === "patient" && !patientEmail)
+                    }
+                    className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {sendingEmail ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-5 h-5" />
+                        <span>Send Email</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
+  );
+}
+
+// Pre/Post Consultation Image Card Component
+function PrePostImageCard({
+  attachment,
+  onAttachmentDeleted,
+}: {
+  attachment: DoctorNoteAttachment;
+  onAttachmentDeleted?: () => void;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  useEffect(() => {
+    const fetchSignedUrl = async () => {
+      if (!attachment.filePath) {
+        setError(true);
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        const response = await getDoctorNoteAttachmentViewUrl(attachment.id);
+        if (response.success && response.signedUrl) {
+          setImageUrl(response.signedUrl);
+        } else {
+          setError(true);
+        }
+      } catch (err: any) {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSignedUrl();
+  }, [attachment.id, attachment.filePath]);
+
+  const confirmDelete = async () => {
+    setShowDeleteModal(false);
+
+    try {
+      const result = await deleteDoctorNoteAttachment(attachment.id);
+      if (result.success) {
+        toast.success("Image deleted successfully");
+        if (onAttachmentDeleted) {
+          onAttachmentDeleted();
+        }
+      } else {
+        throw new Error(result.error || "Failed to delete image");
+      }
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error ||
+          error?.message ||
+          "Failed to delete image"
+      );
+    }
+  };
+
+  return (
+    <div className="relative group rounded-lg overflow-hidden border border-emerald-200 bg-white shadow-sm hover:shadow-md transition-all">
+      {loading ? (
+        <div className="w-full h-32 flex items-center justify-center bg-emerald-100">
+          <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+        </div>
+      ) : error ? (
+        <div className="w-full h-32 flex items-center justify-center bg-red-50 text-red-700 text-xs p-2 text-center">
+          Failed to load
+        </div>
+      ) : imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={attachment.fileName}
+          className="w-full h-32 object-cover"
+        />
+      ) : null}
+      <div className="p-2">
+        <p
+          className="text-xs text-slate-700 truncate mb-1"
+          title={attachment.fileName}
+        >
+          {attachment.fileName}
+        </p>
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => {
+              if (imageUrl) {
+                window.open(imageUrl, "_blank", "noopener,noreferrer");
+              }
+            }}
+            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+          >
+            View
+          </button>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="text-xs text-red-500 hover:text-red-700 font-medium"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50"
+          >
+            <motion.div
+              initial={{ scale: 0.98, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+              className="w-full max-w-sm rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="p-4">
+                <h3 className="text-sm font-bold text-slate-800">
+                  Delete image?
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 break-words">
+                  This will permanently delete{" "}
+                  <span className="font-semibold">"{attachment.fileName}"</span>.
+                </p>
+              </div>
+              <div className="px-4 pb-4 flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="w-full sm:flex-1 px-3 py-2 rounded-lg border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="w-full sm:flex-1 px-3 py-2 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Medical Report Card Component (for preview grid)
+function MedicalReportCard({
+  attachment,
+  onAttachmentDeleted,
+}: {
+  attachment: DoctorNoteAttachment;
+  onAttachmentDeleted?: () => void;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const isImage =
+    attachment.mimeType?.startsWith("image/") ||
+    ["png", "jpg", "jpeg"].includes(
+      attachment.filePath?.split(".").pop()?.toLowerCase() || ""
+    );
+
+  React.useEffect(() => {
+    if (!isImage) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchSignedUrl = async () => {
+      try {
+        const response = await getDoctorNoteAttachmentViewUrl(attachment.id);
+        if (response.success && response.signedUrl) {
+          setImageUrl(response.signedUrl);
+        } else {
+          setError(true);
+        }
+      } catch (error) {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSignedUrl();
+  }, [attachment.id, isImage]);
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return "";
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+  };
+
+  const handleView = async () => {
+    try {
+      const response = await getDoctorNoteAttachmentViewUrl(attachment.id);
+      if (response.success && response.signedUrl) {
+        window.open(response.signedUrl, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("Failed to open report");
+      }
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error ||
+          "Failed to open report. Please try again."
+      );
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      toast.loading("Starting download...", { id: "download-toast" });
+
+      // IMPORTANT:
+      // Do NOT XHR/fetch the R2 signed URL from the browser (CORS/preflight often blocks it).
+      // Instead, hit our backend download endpoint which streams the file as an attachment.
+      const base =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4001/api";
+      const downloadUrl = `${base}/admin/doctor-notes/attachment/${attachment.id}/download`;
+
+      // Trigger a normal navigation download (no CORS/XHR).
+      window.open(downloadUrl, "_blank", "noopener,noreferrer");
+      toast.success("Download started", { id: "download-toast" });
+    } catch (error: any) {
+      console.error("[DOWNLOAD] Error:", error);
+      const errorMessage = 
+        error?.response?.data?.error ||
+        error?.response?.statusText ||
+        error?.message ||
+        "Failed to download report. Please try again.";
+      
+      toast.error(errorMessage, { id: "download-toast" });
+    }
+  };
+
+  const confirmDelete = async () => {
+    setShowDeleteModal(false);
+
+    try {
+      const result = await deleteDoctorNoteAttachment(attachment.id);
+      if (result.success) {
+        toast.success("Report deleted successfully");
+        if (onAttachmentDeleted) {
+          onAttachmentDeleted();
+        }
+      } else {
+        throw new Error(result.error || "Failed to delete report");
+      }
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error ||
+          error?.message ||
+          "Failed to delete report"
+      );
+    }
+  };
+
+  return (
+    <div className="relative group rounded-xl border-2 border-emerald-200 bg-white hover:bg-emerald-50 p-4 transition-all shadow-sm hover:shadow-md">
+      {isImage ? (
+        <>
+          {loading ? (
+            <div className="w-full h-40 flex items-center justify-center bg-emerald-100 rounded-lg mb-3">
+              <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+            </div>
+          ) : error ? (
+            <div className="w-full h-40 flex items-center justify-center bg-emerald-100 rounded-lg mb-3">
+              <span className="text-xs text-slate-400">Failed to load</span>
+            </div>
+          ) : imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={attachment.fileName}
+              className="w-full h-40 object-cover rounded-lg mb-3"
+            />
+          ) : null}
+        </>
+      ) : (
+        <div className="flex items-center justify-center h-40 mb-3 bg-emerald-100 rounded-lg">
+          <FileText className="w-16 h-16 text-emerald-600" />
+        </div>
+      )}
+      <p
+        className="text-sm font-semibold text-slate-700 truncate mb-1"
+        title={attachment.fileName}
+      >
+        {attachment.fileName}
+      </p>
+      {attachment.sizeInBytes && (
+        <p className="text-xs text-slate-500 mb-3">
+          {formatFileSize(attachment.sizeInBytes)}
+        </p>
+      )}
+      {/* Actions: stacked on mobile, inline on larger screens */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <button
+          onClick={handleView}
+          className="w-full sm:flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1"
+        >
+          <ExternalLink className="w-3 h-3" />
+          View
+        </button>
+        <button
+          onClick={handleDownload}
+          className="w-full sm:flex-1 px-3 py-2 bg-slate-600 text-white text-xs font-semibold rounded-lg hover:bg-slate-700 transition-colors flex items-center justify-center gap-1"
+        >
+          <Download className="w-3 h-3" />
+          Download
+        </button>
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          className="w-full sm:w-auto px-3 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-1"
+          title="Delete report"
+        >
+          <Trash2 className="w-3 h-3" />
+          <span className="sm:hidden">Delete</span>
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {showDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50"
+          >
+            <motion.div
+              initial={{ scale: 0.98, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+              className="w-full max-w-sm rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="p-4">
+                <h3 className="text-sm font-bold text-slate-800">
+                  Delete report?
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 break-words">
+                  This will permanently delete{" "}
+                  <span className="font-semibold">"{attachment.fileName}"</span>.
+                </p>
+              </div>
+              <div className="px-4 pb-4 flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="w-full sm:flex-1 px-3 py-2 rounded-lg border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="w-full sm:flex-1 px-3 py-2 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Diet PDF Card Component (R2-only)
+function DietPdfCard({ attachment }: { attachment: DoctorNoteAttachment }) {
+  const handleView = async () => {
+    try {
+      const response = await getDoctorNoteAttachmentViewUrl(attachment.id);
+      if (response.success && response.signedUrl) {
+        window.open(response.signedUrl, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("Failed to open PDF");
+      }
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error || "Failed to open PDF. Please try again."
+      );
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      toast.loading("Starting download...", { id: "download-toast" });
+
+      // IMPORTANT: download via backend to avoid browser CORS/preflight issues with R2 signed URLs
+      const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4001/api";
+      const downloadUrl = `${base}/admin/doctor-notes/attachment/${attachment.id}/download`;
+      window.open(downloadUrl, "_blank", "noopener,noreferrer");
+
+      toast.success("Download started", { id: "download-toast" });
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.error ||
+          error?.message ||
+          "Failed to download PDF. Please try again.",
+        { id: "download-toast" }
+      );
+    }
+  };
+
+  return (
+    <div className="relative group rounded-xl border-2 border-emerald-200 bg-white hover:bg-emerald-50 p-5 transition-all shadow-sm hover:shadow-md hover:-translate-y-1">
+      <div className="flex flex-col items-center text-center">
+        {/* PDF Icon */}
+        <div className="mb-4">
+          <svg
+            width="64"
+            height="64"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"
+              fill="#10b981"
+              stroke="#10b981"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M14 2V8H20"
+              fill="#fff"
+              stroke="#10b981"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <text
+              x="12"
+              y="16"
+              fontSize="5"
+              fontWeight="bold"
+              fill="#fff"
+              textAnchor="middle"
+            >
+              PDF
+            </text>
+          </svg>
+        </div>
+
+        <p
+          className="text-sm text-slate-700 truncate w-full mb-2"
+          title={attachment.fileName}
+        >
+          {attachment.fileName}
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-2 w-full">
+          <button
+            type="button"
+            onClick={handleView}
+            className="w-full sm:flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            View
+          </button>
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="w-full sm:flex-1 px-3 py-2 bg-slate-600 text-white text-xs font-semibold rounded-lg hover:bg-slate-700 transition-colors"
+          >
+            Download
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

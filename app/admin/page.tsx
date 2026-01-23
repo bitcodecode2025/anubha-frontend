@@ -8,6 +8,8 @@ import {
   Clock,
   ArrowRight,
   MessageSquare,
+  UserPlus,
+  Users,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/app/context/AuthContext";
@@ -51,6 +53,10 @@ export default function AdminDashboardPage() {
       router.push("/admin/appointments");
     } else if (cardId === "testimonials") {
       router.push("/admin/testimonials");
+    } else if (cardId === "create-patient") {
+      router.push("/admin/users/create");
+    } else if (cardId === "manage-users") {
+      router.push("/admin/users");
     } else {
       setClickedCard(cardId);
       toast("Coming soon!", {
@@ -79,6 +85,92 @@ export default function AdminDashboardPage() {
 
         {/* Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+          {/* Create User Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            whileHover={{ scale: 1.02, y: -5 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => handleCardClick("create-patient")}
+            className={`
+              relative overflow-hidden
+              bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50
+              rounded-2xl shadow-xl border-2 border-indigo-200/50
+              p-8 cursor-pointer transition-all duration-300
+              ${
+                clickedCard === "create-patient"
+                  ? "ring-4 ring-indigo-400 ring-offset-2"
+                  : ""
+              }
+              hover:shadow-2xl hover:border-indigo-300
+            `}
+          >
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-purple-500 rounded-full blur-2xl" />
+            </div>
+            <div className="relative z-10">
+              <div className="mb-6 flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg">
+                <UserPlus className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900 mb-3">
+                Create User
+              </h3>
+              <p className="text-slate-600 mb-6 leading-relaxed">
+                Create a new user account. Add name, phone, email, and password
+                to register a new user.
+              </p>
+              <div className="flex items-center gap-2 text-indigo-600 font-semibold">
+                <span>Create New User</span>
+                <ArrowRight className="w-5 h-5" />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Manage Users Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            whileHover={{ scale: 1.02, y: -5 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => handleCardClick("manage-users")}
+            className={`
+              relative overflow-hidden
+              bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50
+              rounded-2xl shadow-xl border-2 border-orange-200/50
+              p-8 cursor-pointer transition-all duration-300
+              ${
+                clickedCard === "manage-users"
+                  ? "ring-4 ring-orange-400 ring-offset-2"
+                  : ""
+              }
+              hover:shadow-2xl hover:border-orange-300
+            `}
+          >
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-500 rounded-full blur-2xl" />
+            </div>
+            <div className="relative z-10">
+              <div className="mb-6 flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg">
+                <Users className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900 mb-3">
+                Manage Users
+              </h3>
+              <p className="text-slate-600 mb-6 leading-relaxed">
+                View all users and patients. Search by name or phone, and create
+                appointments for existing users.
+              </p>
+              <div className="flex items-center gap-2 text-orange-600 font-semibold">
+                <span>Manage Users</span>
+                <ArrowRight className="w-5 h-5" />
+              </div>
+            </div>
+          </motion.div>
+
           {/* Edit Slots Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import {
   getMyAppointments,
@@ -13,6 +13,7 @@ import {
   MapPin,
   Video,
   ChevronLeft,
+  ChevronRight,
   Loader2,
   CheckCircle2,
   XCircle,
@@ -22,13 +23,88 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
+import { ErrorBoundary } from "@/app/components/ErrorBoundary";
+import { formatDateIST, formatTimeIST } from "@/lib/date";
 
 export default function AppointmentsPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
+
+  // Initialize pagination from URL
+  const initialPage = Number(searchParams.get("page")) || 1;
+  const initialLimit = Number(searchParams.get("limit")) || 20;
+  const initialSort = searchParams.get("sort") || "latest";
+
   const [appointments, setAppointments] = useState<UserAppointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(Math.max(1, initialPage));
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(
+    Math.min(200, Math.max(1, initialLimit || 20))
+  );
+  const [sortByDate, setSortByDate] = useState<"latest" | "oldest">(
+    initialSort === "oldest" ? "oldest" : "latest"
+  );
 
+  // Track initial mount to prevent URL sync loop
+  const isInitialMount = useRef(true);
+
+  // Memoize fetchAppointments to prevent recreation on every render
+  const fetchAppointments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await getMyAppointments({ page, limit, sort: sortByDate });
+      setAppointments(response.appointments || []);
+      setTotal(response.total || 0);
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || "Failed to load appointments"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [page, limit, sortByDate]);
+
+  // Helper to sync URL with current pagination state
+  // Only sync if URL differs from state to prevent infinite loops
+  const syncUrlWithState = useCallback(
+    (newPage: number, newLimit: number, newSort?: "latest" | "oldest") => {
+      // Check if URL already matches state
+      const currentPage = Number(searchParams.get("page")) || 1;
+      const currentLimit = Number(searchParams.get("limit")) || 20;
+      const currentSort = searchParams.get("sort") || "latest";
+      const effectiveSort = newSort !== undefined ? newSort : sortByDate;
+      
+      if (currentPage === newPage && currentLimit === newLimit && currentSort === effectiveSort) {
+        return; // URL already matches, no need to update
+      }
+
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", newPage.toString());
+      params.set("limit", newLimit.toString());
+      if (effectiveSort && effectiveSort !== "latest") {
+        params.set("sort", effectiveSort);
+      } else {
+        params.delete("sort");
+      }
+
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams, sortByDate]
+  );
+
+  // Effect to update URL when state changes (skip initial mount)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return; // Skip URL sync on initial mount
+    }
+    syncUrlWithState(page, limit, sortByDate);
+  }, [page, limit, sortByDate, syncUrlWithState]);
+
+  // Fetch appointments when auth is ready and pagination changes
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
@@ -41,21 +117,7 @@ export default function AppointmentsPage() {
     }
 
     fetchAppointments();
-  }, [user, authLoading, router]);
-
-  async function fetchAppointments() {
-    setLoading(true);
-    try {
-      const response = await getMyAppointments();
-      setAppointments(response.appointments || []);
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message || "Failed to load appointments"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [user, authLoading, router, fetchAppointments]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -120,6 +182,26 @@ export default function AppointmentsPage() {
             </p>
           </div>
 
+          {/* Sort Control */}
+          {appointments.length > 0 && (
+            <div className="mb-6 flex items-center justify-end gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                Sort by Date:
+              </label>
+              <select
+                value={sortByDate}
+                onChange={(e) => {
+                  setSortByDate(e.target.value as "latest" | "oldest");
+                  setPage(1); // Reset to page 1 when sort changes
+                }}
+                className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+              >
+                <option value="latest">Latest First</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </div>
+          )}
+
           {/* Appointments List */}
           {appointments.length === 0 ? (
             <div className="bg-white/60 backdrop-blur-xl rounded-2xl p-12 text-center border border-white/40 shadow-lg">
@@ -168,33 +250,15 @@ export default function AppointmentsPage() {
                             <div className="flex items-center gap-2">
                               <Clock className="w-4 h-4" />
                               <span>
-                                {new Date(
-                                  appointment.startAt
-                                ).toLocaleDateString("en-IN", {
-                                  weekday: "short",
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                })}
+                                {formatDateIST(appointment.startAt, "EEE, dd MMM yyyy")}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Clock className="w-4 h-4" />
                               <span>
-                                {new Date(
-                                  appointment.startAt
-                                ).toLocaleTimeString("en-IN", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
+                                {formatTimeIST(appointment.startAt, "hh:mm a")}
                                 {" - "}
-                                {new Date(appointment.endAt).toLocaleTimeString(
-                                  "en-IN",
-                                  {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  }
-                                )}
+                                {formatTimeIST(appointment.endAt, "hh:mm a")}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -260,6 +324,91 @@ export default function AppointmentsPage() {
                   </div>
                 </motion.div>
               ))}
+
+              {/* Pagination */}
+              {total > limit && (
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gradient-to-br from-emerald-50/80 to-white rounded-xl p-5 border-2 border-emerald-200/60 shadow-md shadow-emerald-100/50">
+                  {/* Page Size Selector */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold text-slate-800">
+                      Page Size:
+                    </label>
+                    <select
+                      value={limit}
+                      onChange={(e) => {
+                        setLimit(Number(e.target.value));
+                        setPage(1); // Reset to page 1 when limit changes
+                      }}
+                      className="px-3 py-1.5 border-2 border-emerald-300/60 bg-white rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium text-slate-800 shadow-sm hover:border-emerald-400 transition-colors"
+                    >
+                      <option value="10">10</option>
+                      <option value="20">20</option>
+                      <option value="50">50</option>
+                    </select>
+                  </div>
+
+                  {/* Pagination Info */}
+                  <div className="text-sm font-semibold text-slate-800">
+                    Showing {(page - 1) * limit + 1} to{" "}
+                    {Math.min(page * limit, total)} of {total} appointments
+                  </div>
+
+                  {/* Pagination Controls */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="p-2.5 border-2 border-emerald-300/60 bg-white rounded-lg hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-emerald-300/60 transition-all duration-200 text-emerald-700 font-semibold"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+
+                    {/* Page Numbers */}
+                    <div className="flex items-center gap-1.5">
+                      {Array.from(
+                        { length: Math.min(5, Math.ceil(total / limit)) },
+                        (_, i) => {
+                          const totalPages = Math.ceil(total / limit);
+                          let pageNum: number;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (page <= 3) {
+                            pageNum = i + 1;
+                          } else if (page >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = page - 2 + i;
+                          }
+
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setPage(pageNum)}
+                              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                                page === pageNum
+                                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-200/50 scale-105"
+                                  : "border-2 border-emerald-300/60 bg-white hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm text-slate-800"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        setPage((p) => Math.min(Math.ceil(total / limit), p + 1))
+                      }
+                      disabled={page >= Math.ceil(total / limit)}
+                      className="p-2.5 border-2 border-emerald-300/60 bg-white rounded-lg hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-emerald-300/60 transition-all duration-200 text-emerald-700 font-semibold"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </motion.div>

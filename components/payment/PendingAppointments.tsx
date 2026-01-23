@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
+import { formatDateIST, formatTimeIST } from "@/lib/date";
 
 interface PendingAppointmentsProps {
   onResumePayment?: (appointmentId: string, orderId: string) => void;
@@ -150,19 +151,11 @@ export default function PendingAppointments({
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-IN", {
-      weekday: "short",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    return formatDateIST(dateString, "EEE, dd MMM yyyy");
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString("en-IN", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatTimeIST(dateString, "hh:mm a");
   };
 
   const getProgressIcon = (progress: string | null) => {

@@ -40,6 +40,12 @@ export interface UserAppointmentDetails {
   planPackageName?: string;
   paymentStatus: string;
   amount?: number;
+  files?: Array<{
+    id: string;
+    url: string;
+    fileName: string;
+    mimeType: string;
+  }>;
   patient: {
     id: string;
     name: string;
@@ -53,12 +59,6 @@ export interface UserAppointmentDetails {
     height: number;
     medicalHistory?: string;
     appointmentConcerns?: string;
-    files: Array<{
-      id: string;
-      url: string;
-      fileName: string;
-      mimeType: string;
-    }>;
     recalls: Array<{
       id: string;
       notes?: string;
@@ -84,6 +84,9 @@ export interface UserAppointmentDetails {
 export interface GetMyAppointmentsResponse {
   success: boolean;
   appointments: UserAppointment[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 export interface GetUserAppointmentDetailsResponse {
@@ -91,9 +94,21 @@ export interface GetUserAppointmentDetailsResponse {
   appointment: UserAppointmentDetails;
 }
 
-export async function getMyAppointments(): Promise<GetMyAppointmentsResponse> {
+export async function getMyAppointments(
+  params?: { page?: number; limit?: number; includePending?: boolean; sort?: "latest" | "oldest" }
+): Promise<GetMyAppointmentsResponse> {
   try {
-    const res = await api.get<GetMyAppointmentsResponse>("appointments/my");
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.set("page", params.page.toString());
+    if (params?.limit) queryParams.set("limit", params.limit.toString());
+    if (params?.includePending) queryParams.set("includePending", "true");
+    if (params?.sort) queryParams.set("sort", params.sort);
+
+    const queryString = queryParams.toString();
+    const url = queryString
+      ? `appointments/my?${queryString}`
+      : "appointments/my";
+    const res = await api.get<GetMyAppointmentsResponse>(url);
     return res.data;
   } catch (error: any) {
     throw error;

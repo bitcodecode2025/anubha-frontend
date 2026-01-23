@@ -14,6 +14,7 @@ import {
 import { getAvailableSlots, Slot } from "@/lib/slots";
 import { updateAppointmentSlot } from "@/lib/appointment";
 import toast from "react-hot-toast";
+import { getDateStringIST } from "@/lib/date";
 
 export default function SlotPage() {
   const { form, setForm, resetForm } = useBookingForm();
@@ -61,7 +62,20 @@ export default function SlotPage() {
             // planDuration is required - use "40 min" for general consultation if not provided
             const planDuration = form.planPackageDuration || "40 min";
 
+            // Check for existing appointmentId (persist across navigation)
+            const existingAppointmentId =
+              form.appointmentId ||
+              (() => {
+                try {
+                  const saved = localStorage.getItem("bookingForm");
+                  return saved ? JSON.parse(saved).appointmentId : null;
+                } catch {
+                  return null;
+                }
+              })();
+
             const appointmentResponse = await createAppointment({
+              appointmentId: existingAppointmentId || undefined, // Pass existing ID if available
               bookingProgress: "USER_DETAILS", // User form filled, next is recall
               patientId: form.patientId!,
               planSlug: form.planSlug!,
@@ -72,7 +86,33 @@ export default function SlotPage() {
               appointmentMode: "IN_PERSON", // Default, can be changed
             });
 
-            setForm({ appointmentId: appointmentResponse.data.id });
+            const appointmentId = appointmentResponse.data.id;
+            setForm({ appointmentId });
+
+            // Also update localStorage to persist across navigation
+            try {
+              const saved = localStorage.getItem("bookingForm");
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                localStorage.setItem(
+                  "bookingForm",
+                  JSON.stringify({
+                    ...parsed,
+                    appointmentId,
+                  })
+                );
+              } else {
+                localStorage.setItem(
+                  "bookingForm",
+                  JSON.stringify({
+                    appointmentId,
+                  })
+                );
+              }
+            } catch (err) {
+              // Non-critical - localStorage update failed
+              console.warn("Failed to persist appointmentId to localStorage:", err);
+            }
           } catch (error: any) {
             toast.error("Failed to initialize appointment. Please try again.");
           }
@@ -120,12 +160,9 @@ export default function SlotPage() {
         // Convert mode to backend format
         const backendMode = mode === "In-person" ? "IN_PERSON" : "ONLINE";
 
-        // Format date as YYYY-MM-DD in local timezone (not UTC)
-        // This ensures we get the correct date regardless of timezone
-        const year = selectedDate.getFullYear();
-        const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
-        const day = String(selectedDate.getDate()).padStart(2, "0");
-        const dateStr = `${year}-${month}-${day}`;
+        // Format date as YYYY-MM-DD in IST timezone
+        // This ensures we get the correct date regardless of browser or server timezone
+        const dateStr = getDateStringIST(selectedDate);
 
         const fetchedSlots = await getAvailableSlots(dateStr, backendMode);
 

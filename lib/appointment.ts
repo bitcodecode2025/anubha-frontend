@@ -1,6 +1,7 @@
 import api from "./api";
 
 export interface CreateAppointmentRequest {
+  appointmentId?: string; // NEW: Optional appointment ID to update existing appointment
   patientId: string;
   slotId?: string; // Optional - can be set later
   planSlug: string;
