@@ -24,7 +24,11 @@ jobs:
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST_ANUBHA_FRONTEND }} << 'EOF'
             cd /var/www/nextapp/anubha-frontend-staging
-            git pull origin develop
+            git fetch origin
+            git checkout develop
+            git reset --hard origin/develop
+            git clean -fd
+            rm -rf .next
             npm install
             npm run build
             pm2 restart anubha-frontend-staging || pm2 start npm --name "anubha-frontend-staging" -- start
