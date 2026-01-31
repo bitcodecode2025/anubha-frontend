@@ -31,6 +31,7 @@ export interface DoctorNotesFormData {
     time?: string;
     waterIntake?: number;
     medicines?: string;
+    extraNotes?: string;
     tea?: { checked: boolean; type?: string };
     coffee?: { checked: boolean };
     lemonWater?: { checked: boolean };
@@ -53,7 +54,10 @@ export interface DoctorNotesFormData {
   lunch?: {
     time?: string;
     rice?: { bowls?: string; type?: string };
-    roti?: { count?: string };
+    roti?: { count?: string; type?: string };
+    vegetable?: string;
+    vegetableType?: string;
+    vegetableCount?: string;
     dal?: { bowls?: string; type?: string; otherType?: string };
     sambhar?: { bowls?: string; type?: string; otherType?: string };
     curdKadhi?: { bowls?: string };
@@ -257,6 +261,21 @@ export interface DoctorNotesFormData {
     thighLower?: string;
     calf?: string;
     ankle?: string;
+    // Body Composition (stored in JSONB)
+    bodyWeight?: string;
+    bmi?: string;
+    bodyFatRatio?: string;
+    bodyWater?: string;
+    boneMass?: string;
+    bmr?: string;
+    metabolicAge?: string;
+    visceralFat?: string;
+    subcutaneousFat?: string;
+    proteinMass?: string;
+    muscleMass?: string;
+    weightWithoutFat?: string;
+    muscleRate?: string;
+    obesityLevel?: string;
   };
 
   // General notes

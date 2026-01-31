@@ -166,9 +166,13 @@ const BodyMeasurementsSection = ({
           unit="kg"
         />
         <FieldDisplay
+          label="Muscle Rate"
+          value={(formData.bodyMeasurements as any)?.muscleRate}
+          unit="%"
+        />
+        <FieldDisplay
           label="Obesity Level"
           value={(formData.bodyMeasurements as any)?.obesityLevel}
-          unit="%"
         />
       </div>
     </div>

@@ -280,13 +280,21 @@ export default function BodyMeasurementsFormSection({
             placeholder="in kg"
           />
           <Input
+            label="Muscle Rate"
+            type="number"
+            value={bodyMeasurements.muscleRate || ""}
+            onChange={(val) =>
+              updateFormData(["bodyMeasurements", "muscleRate"], val)
+            }
+            placeholder="in %"
+          />
+          <Input
             label="Obesity Level"
             type="number"
             value={bodyMeasurements.obesityLevel || ""}
             onChange={(val) =>
               updateFormData(["bodyMeasurements", "obesityLevel"], val)
             }
-            placeholder="in %"
           />
         </div>
       </SubSection>
