@@ -93,17 +93,27 @@ const FoodRecallSection = ({ formData }: FoodRecallSectionProps) => {
                   label="Time"
                   value={formData.morningIntake.time}
                 />
-                <FieldDisplay
-                  label="Water Intake"
-                  value={formData.morningIntake.waterIntake}
-                  unit="ml"
-                />
+                {(formData.morningIntake.waterIntake !== undefined && formData.morningIntake.waterIntake !== null) && (
+                  <FieldDisplay
+                    label="Overall Water Intake Throughout the Day"
+                    value={formData.morningIntake.waterIntake}
+                    unit="L"
+                  />
+                )}
                 <div className="md:col-span-2">
                   <FieldDisplay
                     label="Medicines"
                     value={formData.morningIntake.medicines}
                   />
                 </div>
+                {formData.morningIntake.extraNotes && (
+                  <div className="md:col-span-2">
+                    <FieldDisplay
+                      label="Extra Notes"
+                      value={formData.morningIntake.extraNotes}
+                    />
+                  </div>
+                )}
                 {formData.morningIntake.tea !== undefined && (
                   <div className="bg-white rounded p-2">
                     <div className="font-medium text-slate-900">
@@ -343,6 +353,30 @@ const FoodRecallSection = ({ formData }: FoodRecallSectionProps) => {
                 <FieldDisplay
                   label="Roti"
                   value={`${formData.lunch.roti.count} pieces`}
+                />
+              )}
+              {formData.lunch.roti?.type && (
+                <FieldDisplay
+                  label="Roti Type"
+                  value={formData.lunch.roti.type}
+                />
+              )}
+              {formData.lunch.vegetable && (
+                <FieldDisplay
+                  label="Vegetable"
+                  value={formData.lunch.vegetable}
+                />
+              )}
+              {formData.lunch.vegetableType && (
+                <FieldDisplay
+                  label="Vegetable Type"
+                  value={formData.lunch.vegetableType}
+                />
+              )}
+              {formData.lunch.vegetableCount && (
+                <FieldDisplay
+                  label="Vegetable Count"
+                  value={`${formData.lunch.vegetableCount} bowls`}
                 />
               )}
               {formData.lunch.dal?.bowls && (
@@ -702,6 +736,30 @@ const FoodRecallSection = ({ formData }: FoodRecallSectionProps) => {
                 <FieldDisplay
                   label="Roti"
                   value={`${formData.dinner.roti.count} pieces`}
+                />
+              )}
+              {formData.dinner.roti?.type && (
+                <FieldDisplay
+                  label="Roti Type"
+                  value={formData.dinner.roti.type}
+                />
+              )}
+              {formData.dinner.vegetable && (
+                <FieldDisplay
+                  label="Vegetable"
+                  value={formData.dinner.vegetable}
+                />
+              )}
+              {formData.dinner.vegetableType && (
+                <FieldDisplay
+                  label="Vegetable Type"
+                  value={formData.dinner.vegetableType}
+                />
+              )}
+              {formData.dinner.vegetableCount && (
+                <FieldDisplay
+                  label="Vegetable Count"
+                  value={`${formData.dinner.vegetableCount} bowls`}
                 />
               )}
               {formData.dinner.dal?.bowls && (

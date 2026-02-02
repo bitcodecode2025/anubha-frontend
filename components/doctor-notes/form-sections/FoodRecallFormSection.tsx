@@ -44,13 +44,13 @@ export default function FoodRecallFormSection({
             isTime
           />
           <Input
-            label="Water Intake (Number)"
+            label="Overall Water Intake Throughout the Day"
             type="number"
-            value={morningIntake.waterIntake || ""}
+            value={morningIntake.waterIntake !== undefined && morningIntake.waterIntake !== null ? morningIntake.waterIntake : ""}
             onChange={(val) =>
               updateFormData(
                 ["morningIntake", "waterIntake"],
-                val ? parseInt(val) : undefined
+                val && val !== "" ? Number(val) : undefined
               )
             }
           />
@@ -60,6 +60,15 @@ export default function FoodRecallFormSection({
               value={morningIntake.medicines || ""}
               onChange={(val) =>
                 updateFormData(["morningIntake", "medicines"], val)
+              }
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <TextArea
+              label="Extra Notes"
+              value={morningIntake.extraNotes || ""}
+              onChange={(val) =>
+                updateFormData(["morningIntake", "extraNotes"], val)
               }
             />
           </div>
@@ -330,6 +339,38 @@ export default function FoodRecallFormSection({
             value={lunch.roti?.count || ""}
             onValueChange={(val) =>
               updateFormData(["lunch", "roti"], { ...lunch.roti, count: val })
+            }
+          />
+          <Select
+            label="Roti Type"
+            options={["Wheat", "Bajra", "Jowar", "Missi", "Multigrain"]}
+            value={lunch.roti?.type || ""}
+            onChange={(val) =>
+              updateFormData(["lunch", "roti"], { ...lunch.roti, type: val })
+            }
+          />
+          <TextArea
+            label="Vegetable"
+            value={lunch.vegetable || ""}
+            onChange={(val) =>
+              updateFormData(["lunch", "vegetable"], val)
+            }
+            small
+          />
+          <TextArea
+            label="Vegetable Type"
+            value={lunch.vegetableType || ""}
+            onChange={(val) =>
+              updateFormData(["lunch", "vegetableType"], val)
+            }
+            small
+          />
+          <Select
+            label="Vegetable Count (Bowls)"
+            options={["1", "2", "3", "4"]}
+            value={lunch.vegetableCount || ""}
+            onChange={(val) =>
+              updateFormData(["lunch", "vegetableCount"], val)
             }
           />
           <Qty5Select
@@ -713,6 +754,38 @@ export default function FoodRecallFormSection({
             value={dinner.roti?.count || ""}
             onValueChange={(val) =>
               updateFormData(["dinner", "roti"], { ...dinner.roti, count: val })
+            }
+          />
+          <Select
+            label="Roti Type"
+            options={["Wheat", "Bajra", "Jowar", "Missi", "Multigrain"]}
+            value={dinner.roti?.type || ""}
+            onChange={(val) =>
+              updateFormData(["dinner", "roti"], { ...dinner.roti, type: val })
+            }
+          />
+          <TextArea
+            label="Vegetable"
+            value={dinner.vegetable || ""}
+            onChange={(val) =>
+              updateFormData(["dinner", "vegetable"], val)
+            }
+            small
+          />
+          <TextArea
+            label="Vegetable Type"
+            value={dinner.vegetableType || ""}
+            onChange={(val) =>
+              updateFormData(["dinner", "vegetableType"], val)
+            }
+            small
+          />
+          <Select
+            label="Vegetable Count (Bowls)"
+            options={["1", "2", "3", "4"]}
+            value={dinner.vegetableCount || ""}
+            onChange={(val) =>
+              updateFormData(["dinner", "vegetableCount"], val)
             }
           />
           <div className="sm:col-span-2"></div>

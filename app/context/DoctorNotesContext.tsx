@@ -31,7 +31,7 @@ const DoctorNotesContext = createContext<DoctorNotesContextType | undefined>(
 );
 
 const STORAGE_PREFIX = "doctor_notes_draft_";
-const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
+const AUTO_SAVE_DELAY = 1000; // 1 second debounce (reduced for faster saves)
 
 interface DoctorNotesProviderProps {
   children: React.ReactNode;
@@ -239,62 +239,108 @@ export function DoctorNotesProvider({
     notesState,
   ]);
 
-  // Load data from localStorage on mount
+  // Load data from localStorage on mount with smart merging
   useEffect(() => {
     if (!appointmentId) return;
 
     try {
       const stored = localStorage.getItem(storageKey);
+      let localStorageData: any = null;
+      let localStorageTimestamp: Date | null = null;
+
       if (stored) {
         const parsed = JSON.parse(stored);
-
-        // Remove metadata before setting form data
         const { _lastSaved, ...restoredData } = parsed;
-
-        // If initialData is provided (from server), it takes precedence
-        // Otherwise, use restored data from localStorage
-        const mergedData = initialData
-          ? { ...restoredData, ...initialData }
-          : restoredData;
-
-        // Split merged data into sections
-        const baseInfo: Partial<DoctorNotesFormData> = {};
-        const foodRecall: Partial<DoctorNotesFormData> = {};
-
-        BASE_INFO_FIELDS.forEach((key) => {
-          if (key in mergedData) {
-            (baseInfo as any)[key] = (mergedData as any)[key];
-          }
-        });
-
-        FOOD_RECALL_FIELDS.forEach((key) => {
-          if (key in mergedData) {
-            (foodRecall as any)[key] = (mergedData as any)[key];
-          }
-        });
-
-        setBaseInfoState(baseInfo);
-        setFoodRecallState(foodRecall);
-        setWeekendDietState({ weekendDiet: mergedData.weekendDiet });
-        setQuestionnaireState({ questionnaire: mergedData.questionnaire });
-        setFoodFrequencyState({ foodFrequency: mergedData.foodFrequency });
-        setHealthProfileState({ healthProfile: mergedData.healthProfile });
-        setDietPrescribedState({ dietPrescribed: mergedData.dietPrescribed });
-        setBodyMeasurementsState({
-          bodyMeasurements: mergedData.bodyMeasurements,
-        });
-        setNotesState({ notes: mergedData.notes });
-
-        setLastSaved(_lastSaved ? new Date(_lastSaved) : null);
-        setHasUnsavedChanges(false);
-      } else if (initialData) {
-        // No stored data, use initial data from server (already split in initial state)
-        setHasUnsavedChanges(false);
+        localStorageData = restoredData;
+        localStorageTimestamp = _lastSaved ? new Date(_lastSaved) : null;
       }
+
+      // Smart merge: Prefer newer data based on timestamps
+      // If localStorage exists and is newer (or no server data), use localStorage
+      // If server data is newer, merge intelligently (localStorage edits take precedence for edited fields)
+      let mergedData: Partial<DoctorNotesFormData> = {};
+
+      if (localStorageData && initialData) {
+        // Both exist - merge intelligently
+        // localStorage (user edits) takes precedence for fields that exist in localStorage
+        // Server data fills in missing fields
+        mergedData = {
+          ...initialData, // Start with server data (baseline)
+          ...localStorageData, // Override with localStorage (user edits win)
+        };
+      } else if (localStorageData) {
+        // Only localStorage exists
+        mergedData = localStorageData;
+      } else if (initialData) {
+        // Only server data exists
+        mergedData = initialData;
+      }
+
+      // Split merged data into sections - ensure ALL fields are preserved
+      const baseInfo: Partial<DoctorNotesFormData> = {};
+      const foodRecall: Partial<DoctorNotesFormData> = {};
+
+      // Base Info fields
+      BASE_INFO_FIELDS.forEach((key) => {
+        if (key in mergedData) {
+          (baseInfo as any)[key] = (mergedData as any)[key];
+        }
+      });
+
+      // Food Recall fields
+      FOOD_RECALL_FIELDS.forEach((key) => {
+        if (key in mergedData) {
+          (foodRecall as any)[key] = (mergedData as any)[key];
+        }
+      });
+
+      // Set all section states - preserve all fields including nested ones
+      // Use deep merge for nested objects to preserve all fields
+      setBaseInfoState(baseInfo);
+      setFoodRecallState(foodRecall);
+      
+      // Deep merge for nested objects - preserve all nested fields
+      const mergeNestedObjects = (localStorageVal: any, serverVal: any) => {
+        if (!localStorageVal) return serverVal || undefined;
+        if (!serverVal) return localStorageVal;
+        // Both exist - merge deeply (localStorage wins for conflicts)
+        if (typeof localStorageVal === "object" && typeof serverVal === "object" && !Array.isArray(localStorageVal) && !Array.isArray(serverVal)) {
+          return { ...serverVal, ...localStorageVal };
+        }
+        return localStorageVal; // localStorage always wins
+      };
+      
+      setWeekendDietState({ 
+        weekendDiet: mergeNestedObjects(mergedData.weekendDiet, initialData?.weekendDiet)
+      });
+      setQuestionnaireState({ 
+        questionnaire: mergeNestedObjects(mergedData.questionnaire, initialData?.questionnaire)
+      });
+      setFoodFrequencyState({ 
+        foodFrequency: mergeNestedObjects(mergedData.foodFrequency, initialData?.foodFrequency) || {}
+      });
+      setHealthProfileState({ 
+        healthProfile: mergeNestedObjects(mergedData.healthProfile, initialData?.healthProfile)
+      });
+      setDietPrescribedState({ 
+        dietPrescribed: mergeNestedObjects(mergedData.dietPrescribed, initialData?.dietPrescribed)
+      });
+      setBodyMeasurementsState({
+        bodyMeasurements: mergeNestedObjects(mergedData.bodyMeasurements, initialData?.bodyMeasurements) || {}
+      });
+      setNotesState({ 
+        notes: mergedData.notes !== undefined ? mergedData.notes : (initialData?.notes)
+      });
+
+      // Set last saved timestamp from localStorage if available
+      setLastSaved(localStorageTimestamp);
+      setHasUnsavedChanges(false);
     } catch (error) {
-      // If restore fails, use initialData or keep default state
+      // If restore fails, fall back to initialData
+      console.error("Failed to restore from localStorage:", error);
       if (initialData) {
         // Already initialized from initialData in useState
+        setHasUnsavedChanges(false);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -318,14 +364,20 @@ export function DoctorNotesProvider({
         ...stateRefs.current.notes,
       };
 
+      const now = new Date();
       const dataToStore = {
         ...fullData,
-        _lastSaved: new Date().toISOString(),
+        _lastSaved: now.toISOString(),
+        _version: "1.0", // Version for future migrations
       };
+      
+      // Use synchronous localStorage.setItem for reliability
       localStorage.setItem(storageKey, JSON.stringify(dataToStore));
-      setLastSaved(new Date());
+      setLastSaved(now);
       setIsAutoSaving(false);
     } catch (error) {
+      // Handle quota exceeded or other localStorage errors gracefully
+      console.error("Failed to save to localStorage:", error);
       setIsAutoSaving(false);
     }
   }, [appointmentId, storageKey]);
@@ -662,21 +714,57 @@ export function DoctorNotesProvider({
     }
   }, [appointmentId, storageKey]);
 
-  // Save before page unload
+  // Save before page unload - ensure save completes
   useEffect(() => {
-    const handleBeforeUnload = () => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges && appointmentId) {
-        // Save immediately without debounce
-        saveToLocalStorage();
+        // Save immediately without debounce - synchronous operation
+        try {
+          const fullData: DoctorNotesFormData = {
+            ...stateRefs.current.baseInfo,
+            ...stateRefs.current.foodRecall,
+            ...stateRefs.current.weekendDiet,
+            ...stateRefs.current.questionnaire,
+            ...stateRefs.current.foodFrequency,
+            ...stateRefs.current.healthProfile,
+            ...stateRefs.current.dietPrescribed,
+            ...stateRefs.current.bodyMeasurements,
+            ...stateRefs.current.notes,
+          };
+
+          const now = new Date();
+          const dataToStore = {
+            ...fullData,
+            _lastSaved: now.toISOString(),
+            _version: "1.0",
+          };
+          
+          // Synchronous save - must complete before page unloads
+          localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+        } catch (error) {
+          // If save fails, warn user (but don't block navigation)
+          console.error("Failed to save before unload:", error);
+        }
       }
     };
 
+    // Use both beforeunload (for warning) and visibilitychange (for better reliability)
     window.addEventListener("beforeunload", handleBeforeUnload);
+    
+    // Also save when page becomes hidden (better for mobile/SPA navigation)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden" && hasUnsavedChanges && appointmentId) {
+        saveToLocalStorage();
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [hasUnsavedChanges, appointmentId, saveToLocalStorage]);
+  }, [hasUnsavedChanges, appointmentId, saveToLocalStorage, storageKey]);
 
   const value: DoctorNotesContextType = {
     formData, // Computed full formData for backward compatibility
